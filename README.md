@@ -5,7 +5,7 @@ Simple tool to check your domains from GoDaddy, IONOS, etc. to manage duration a
 ## Supported Domains
 
 <div align="center">
-  <img src="client/public/godaddy_logo.png" alt="GoDaddy" width="200" />
+  <img src="client/public/godaddy_logo.png" alt="GoDaddy" width="247" />
   <img src="client/public/ionos_logo.png" alt="IONOS" width="200" />
 </div>
 
@@ -17,7 +17,7 @@ Simple tool to check your domains from GoDaddy, IONOS, etc. to manage duration a
 │   │   ├── controllers/  # Request handlers
 │   │   ├── services/     # Business logic & API integrations
 │   │   ├── routes/       # API route definitions
-│   │   ├── types/        # TypeScript interfaces
+│   │   ├── types/        # TypeScript interfaces∏
 │   │   ├── middleware/   # Express middleware
 │   │   └── index.ts      # Server entry point
 │   └── package.json      # Backend dependencies

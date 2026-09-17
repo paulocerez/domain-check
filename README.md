@@ -221,6 +221,16 @@ requests and responses with the key redacted.
   `@op-engineering/op-sqlite`, which drags React Native (React 19) into the tree
   and conflicts with the frontend's React 18. None of it is ever installed or
   imported — the only driver used is `drizzle-orm/node-postgres`.
+- **Regenerate the lockfile with a clean install, never an incremental one.**
+  Rollup, esbuild, Tailwind's oxide and lightningcss all ship per-platform
+  native binaries as optional dependencies. `npm install` on top of an existing
+  `node_modules` prunes the entries for every platform except the one you are
+  on, and the result installs fine locally while failing any Linux CI with
+  "Cannot find module @rollup/rollup-linux-x64-gnu"
+  ([npm/cli#4828](https://github.com/npm/cli/issues/4828)). Always
+  `rm -rf node_modules package-lock.json && npm install`, then check that
+  `grep -c '@rollup/rollup-' package-lock.json` is in the twenties rather than
+  1.
 - `.env` is loaded with `override: true`, so the file always beats the ambient
   environment. A stale `DATABASE_URL` exported in your shell would otherwise
   silently point migrations at another project's database. `NODE_ENV` and

@@ -1,0 +1,176 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens.
+ *
+ * Dark-first, near-black surfaces, hairline borders, a four-step neutral text
+ * ramp, and exactly one accent hue. Colour is scarce on purpose: it is reserved
+ * for focus, the primary action, and expiry urgency. That restraint is what
+ * makes a red row actually read as urgent instead of as more decoration.
+ */
+:root {
+  --radius: 0.5rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --surface: oklch(0.985 0 0);
+  --surface-raised: oklch(1 0 0);
+  --border: oklch(0.922 0 0);
+  --border-strong: oklch(0.87 0 0);
+
+  --text-primary: oklch(0.145 0 0);
+  --text-secondary: oklch(0.45 0 0);
+  --text-tertiary: oklch(0.6 0 0);
+  --text-disabled: oklch(0.72 0 0);
+
+  --accent: oklch(0.52 0.19 277);
+  --accent-foreground: oklch(0.985 0 0);
+  --accent-muted: oklch(0.52 0.19 277 / 0.12);
+
+  --urgent: oklch(0.58 0.21 25);
+  --warning: oklch(0.72 0.16 70);
+  --positive: oklch(0.6 0.14 155);
+
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --ring: oklch(0.52 0.19 277);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --surface: oklch(0.178 0 0);
+  --surface-raised: oklch(0.205 0 0);
+  --border: oklch(1 0 0 / 8%);
+  --border-strong: oklch(1 0 0 / 14%);
+
+  --text-primary: oklch(0.985 0 0);
+  --text-secondary: oklch(0.72 0 0);
+  --text-tertiary: oklch(0.556 0 0);
+  --text-disabled: oklch(0.43 0 0);
+
+  --accent: oklch(0.58 0.19 277);
+  --accent-foreground: oklch(0.985 0 0);
+  --accent-muted: oklch(0.58 0.19 277 / 0.16);
+
+  --urgent: oklch(0.65 0.21 25);
+  --warning: oklch(0.78 0.15 70);
+  --positive: oklch(0.7 0.14 155);
+
+  --muted: oklch(0.24 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --ring: oklch(0.58 0.19 277);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-disabled: var(--text-disabled);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-muted: var(--accent-muted);
+
+  --color-urgent: var(--urgent);
+  --color-warning: var(--warning);
+  --color-positive: var(--positive);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    /* Density is the point: 13px body text with tightened tracking, so a
+       portfolio of 200 domains is scannable without scrolling for a minute. */
+    font-size: 13px;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Keyboard navigation is worthless if you cannot see where you are. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--accent-muted);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Small caps section label used above every panel. */
+  .label-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

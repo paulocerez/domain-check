@@ -1,16 +1,40 @@
 {
   "name": "domain-check",
   "version": "1.0.0",
-  "description": "Domain check application with React frontend and Express backend",
+  "description": "Track domain expirations and renewal costs across registrars",
   "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
-    "dev:client": "cd client && npm run dev",
-    "dev:server": "cd server && npm run dev",
-    "build:client": "cd client && npm run build",
-    "build:server": "cd server && npm run build",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+    "dev": "npm run build -w shared && concurrently -n shared,backend,frontend -c gray,cyan,magenta \"npm:dev:shared\" \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:shared": "npm run dev -w shared",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build -w shared && npm run build -w frontend && npm run build -w backend",
+    "start": "npm run start -w backend",
+    "typecheck": "tsc -b shared backend && npm run typecheck -w frontend",
+    "lint": "npm run lint -w frontend",
+    "test": "npm run test -w backend",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:generate": "npm run db:generate -w backend",
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:studio": "npm run db:studio -w backend",
+    "db:seed": "npm run db:seed -w backend"
   },
-  "keywords": ["domain", "check", "react", "express"],
-  "author": "",
-  "license": "ISC"
+  "keywords": [
+    "domain",
+    "expiration",
+    "ionos",
+    "registrar"
+  ],
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
 }

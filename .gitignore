@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# TypeScript project-reference build state
+*.tsbuildinfo
+
+# Secrets — the root .gitignore previously did not cover these
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

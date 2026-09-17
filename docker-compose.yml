@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: domain-check-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: domaincheck
+      POSTGRES_PASSWORD: domaincheck
+      POSTGRES_DB: domaincheck
+    ports:
+      - "5433:5432"
+    volumes:
+      - domain-check-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U domaincheck -d domaincheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  domain-check-pgdata:

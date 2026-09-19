@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { env } from '../env.js';
+import { databaseUrl } from '../env.js';
 import { logger } from '../lib/logger.js';
 import * as schema from './schema.js';
 
@@ -12,7 +12,7 @@ import * as schema from './schema.js';
  */
 pg.types.setTypeParser(1082, (value) => value);
 
-export function createPool(connectionString = env.DATABASE_URL) {
+export function createPool(connectionString = databaseUrl) {
   const pool = new pg.Pool({
     connectionString,
     max: 10,

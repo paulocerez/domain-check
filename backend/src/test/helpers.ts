@@ -3,7 +3,7 @@ import type pg from 'pg';
 import { createDb, createPool, type Database } from '../db/client.js';
 import { runMigrations } from '../db/migrate.js';
 import { appSettings, registrarAccounts, tldPrices } from '../db/schema.js';
-import { env } from '../env.js';
+import { databaseUrl, env } from '../env.js';
 
 /**
  * Integration-test harness.
@@ -23,12 +23,34 @@ export interface TestHarness {
 export function testDatabaseUrl(): string {
   const url = env.TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL must be set to run integration tests');
-  if (url === env.DATABASE_URL) {
-    // These tests TRUNCATE. Pointing them at the development database would
-    // silently destroy the user's portfolio and cost data.
-    throw new Error('TEST_DATABASE_URL must differ from DATABASE_URL — these tests truncate tables');
+  // These tests TRUNCATE. Pointing them at a database holding a real portfolio
+  // would destroy it, so check every URL the app might actually be using —
+  // both endpoints of a pooled provider, not just DATABASE_URL.
+  for (const [name, candidate] of [
+    ['DATABASE_URL', env.DATABASE_URL],
+    ['DATABASE_URL_UNPOOLED', env.DATABASE_URL_UNPOOLED],
+    ['the effective connection', databaseUrl],
+  ] as const) {
+    if (candidate && sameDatabase(url, candidate)) {
+      throw new Error(`TEST_DATABASE_URL points at the same database as ${name} — these tests truncate tables`);
+    }
   }
   return url;
+}
+
+/** Compares host+database, so a pooled and direct URL to one database still match. */
+function sameDatabase(a: string, b: string): boolean {
+  if (a === b) return true;
+  try {
+    const left = new URL(a);
+    const right = new URL(b);
+    return (
+      left.pathname === right.pathname &&
+      left.hostname.replace('-pooler', '') === right.hostname.replace('-pooler', '')
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function createHarness(): Promise<TestHarness> {

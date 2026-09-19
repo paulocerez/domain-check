@@ -49,6 +49,36 @@ expiring tomorrow, already expired, auto-renew off, set to cancel, mid-transfer,
 an IDN, a multi-label TLD, an unpriced TLD, and one domain whose detail fetch
 fails on purpose.
 
+### Using a hosted Postgres
+
+```bash
+npx vercel@latest link
+npx vercel@latest integration add neon --non-interactive --no-claim
+npm run db:migrate && npm run db:seed
+```
+
+That writes `.env.local`, which the backend loads *after* `.env` and lets win.
+
+**Always connect through the direct endpoint, not the pooled one.** Neon
+provides `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct), and
+`backend/src/env.ts` prefers the latter on purpose. The pooled endpoint is
+PgBouncer in transaction mode, so a client is not kept on one server connection
+between statements and session-level advisory locks quietly stop excluding
+anything. Measured against a live Neon database:
+
+| Endpoint | client A | client B | mutual exclusion |
+| --- | --- | --- | --- |
+| pooled | acquired | **also acquired** | broken |
+| direct | acquired | refused | works |
+
+Sync exclusion rests entirely on that lock, so through the pooler two syncs
+would reconcile the same account simultaneously. This app opens a handful of
+connections for one user, so the direct endpoint costs nothing.
+
+Pick a region near you. A 28-domain sync took **107 ms** against local Postgres
+and **22 s** against a `us-east-1` Neon from Europe — the work is many small
+round trips, so latency dominates.
+
 ### Going live against IONOS
 
 1. Create a key at <https://developer.hosting.ionos.com>. It has the shape

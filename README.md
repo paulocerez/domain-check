@@ -51,32 +51,37 @@ fails on purpose.
 
 ### Using a hosted Postgres
 
-```bash
-npx vercel@latest link
-npx vercel@latest integration add neon --non-interactive --no-claim
-npm run db:migrate && npm run db:seed
-```
+Point `DATABASE_URL` at it and run `npm run db:migrate && npm run db:seed`.
+Credentials can go in `.env`, or in `.env.local` — the backend loads `.env`
+first and lets `.env.local` win, so a file written by a provider CLI overrides
+the hand-maintained defaults without you merging anything by hand.
 
-That writes `.env.local`, which the backend loads *after* `.env` and lets win.
+**Connect through a session-mode endpoint, not a transaction pooler.** This is
+the one requirement this app places on your provider, and getting it wrong
+fails silently.
 
-**Always connect through the direct endpoint, not the pooled one.** Neon
-provides `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct), and
-`backend/src/env.ts` prefers the latter on purpose. The pooled endpoint is
-PgBouncer in transaction mode, so a client is not kept on one server connection
-between statements and session-level advisory locks quietly stop excluding
-anything. Measured against a live Neon database:
+Most managed Postgres services put PgBouncer (or equivalent) in front and hand
+you two URLs — a pooled one and a direct one. In *transaction* pooling mode a
+client is not kept on one server connection between statements, so
+**session-level advisory locks stop excluding anything.** Measured against a
+live pooled provider:
 
 | Endpoint | client A | client B | mutual exclusion |
 | --- | --- | --- | --- |
-| pooled | acquired | **also acquired** | broken |
-| direct | acquired | refused | works |
+| pooled (transaction mode) | acquired | **also acquired** | broken |
+| direct / session mode | acquired | refused | works |
 
-Sync exclusion rests entirely on that lock, so through the pooler two syncs
-would reconcile the same account simultaneously. This app opens a handful of
-connections for one user, so the direct endpoint costs nothing.
+Sync mutual exclusion rests entirely on that lock, so through a transaction
+pooler two syncs would reconcile the same account at once — with no error,
+just wrong data. This app opens a handful of connections for a single user, so
+the direct endpoint costs nothing.
+
+`backend/src/env.ts` prefers `DATABASE_URL_UNPOOLED` when it is set (some
+providers expose the direct endpoint under that name). With a provider that
+gives you one URL, simply make `DATABASE_URL` the direct one.
 
 Pick a region near you. A 28-domain sync took **107 ms** against local Postgres
-and **22 s** against a `us-east-1` Neon from Europe — the work is many small
+and **22 s** against a US-East database from Europe — the work is many small
 round trips, so latency dominates.
 
 ### Going live against IONOS

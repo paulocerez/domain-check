@@ -34,8 +34,8 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required — run `npm run db:up` and copy .env.example'),
   /**
-   * Set by the Neon Marketplace integration alongside a pooled DATABASE_URL.
-   * Preferred when present — see `databaseUrl` below.
+   * The direct (session-mode) endpoint, where a provider exposes it separately
+   * from a pooled DATABASE_URL. Preferred when present — see `databaseUrl`.
    */
   DATABASE_URL_UNPOOLED: z.string().optional(),
   TEST_DATABASE_URL: z.string().optional(),
@@ -75,13 +75,13 @@ export type Env = typeof env;
 /**
  * The connection string the app actually uses.
  *
- * Prefers the direct (unpooled) endpoint when a provider offers both. Neon's
- * pooled endpoint is PgBouncer in transaction mode, which does not keep a
- * client on one server connection between statements — so session-level
- * advisory locks silently stop providing mutual exclusion. Verified against a
- * live Neon database: on the pooled URL two separate clients both succeed at
- * `pg_try_advisory_lock` on the same key; on the direct URL the second
- * correctly fails.
+ * Prefers the direct (session-mode) endpoint when a provider offers both.
+ * Managed Postgres is usually fronted by PgBouncer in transaction mode, which
+ * does not keep a client on one server connection between statements — so
+ * session-level advisory locks silently stop providing mutual exclusion.
+ * Verified against a live pooled provider: through the pooler two separate
+ * clients both succeed at `pg_try_advisory_lock` on the same key; through the
+ * direct endpoint the second correctly fails.
  *
  * Sync exclusion depends on exactly that lock, so a pooled connection would let
  * two syncs reconcile the same account at once. This app opens a handful of

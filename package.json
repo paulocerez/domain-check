@@ -24,7 +24,8 @@
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
     "db:studio": "npm run db:studio -w backend",
-    "db:seed": "npm run db:seed -w backend"
+    "db:seed": "npm run db:seed -w backend",
+    "db:check": "npm run db:check -w backend"
   },
   "keywords": [
     "domain",

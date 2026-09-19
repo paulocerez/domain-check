@@ -51,7 +51,17 @@ fails on purpose.
 
 ### Using a hosted Postgres
 
-Point `DATABASE_URL` at it and run `npm run db:migrate && npm run db:seed`.
+Point `DATABASE_URL` at it, then:
+
+```bash
+npm run db:check                      # verify it before trusting it
+npm run db:migrate && npm run db:seed
+```
+
+`db:check` asserts the things that otherwise fail silently: that the host is
+reachable, that TLS is actually in use if the server offers it, that advisory
+locks really do exclude (see below), that the schema is applied, and that your
+test database is a different one — the integration tests `TRUNCATE`.
 Credentials can go in `.env`, or in `.env.local` — the backend loads `.env`
 first and lets `.env.local` win, so a file written by a provider CLI overrides
 the hand-maintained defaults without you merging anything by hand.

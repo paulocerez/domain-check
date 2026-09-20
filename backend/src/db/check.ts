@@ -145,8 +145,10 @@ async function main() {
     record(
       local ? 'warn' : 'fail',
       'TLS is available but disabled',
-      'The server supports TLS yet sslmode=disable sends credentials and all data in plaintext.\n' +
-        '    Change sslmode=disable to sslmode=require.',
+      'The server supports TLS yet sslmode=disable sends every query and row in plaintext.\n' +
+        '    Switch to sslmode=no-verify for encryption today — it needs nothing on the server.\n' +
+        '    Do not jump straight to sslmode=require: node-postgres currently treats it as\n' +
+        '    verify-full, so it fails until the host has a DNS name and a real certificate.',
     );
   } else if (tls === false && !local) {
     record(

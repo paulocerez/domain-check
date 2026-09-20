@@ -196,7 +196,34 @@ async function main() {
       );
     }
   } catch (err) {
-    record('fail', 'Could not query the database', err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    // node-postgres treats sslmode=require as libpq's verify-full, so a
+    // self-signed certificate — the norm on a self-hosted box, especially one
+    // addressed by bare IP — fails here rather than at the TLS check above.
+    // Without naming it, this reads like a credentials problem.
+    if (/does not support SSL/i.test(message)) {
+      record(
+        'fail',
+        'Server has no TLS, but the URL demands it',
+        `${message}\n` +
+          '    Postgres is running without TLS enabled (ssl = off), so sslmode=require cannot succeed.\n' +
+          '    Enable TLS on the server — the right fix when it is reachable over the internet —\n' +
+          '    or reach it privately (VPN / SSH tunnel) and use sslmode=disable.',
+      );
+    } else if (/self.?signed|altnames|certificate|unable to verify|depth zero/i.test(message)) {
+      record(
+        'fail',
+        'TLS certificate rejected',
+        `${message}\n` +
+          "    The connection is encrypted but the certificate is not trusted — normal for a\n" +
+          '    self-signed cert, and unavoidable when connecting to a bare IP.\n' +
+          '    Best fix: give the host a DNS name and a real certificate, keep sslmode=require.\n' +
+          '    Stopgap: sslmode=no-verify — still encrypted against eavesdroppers, but it\n' +
+          '    cannot detect an active machine-in-the-middle. Better than sslmode=disable.',
+      );
+    } else {
+      record('fail', 'Could not query the database', message);
+    }
   } finally {
     await pool.end();
   }

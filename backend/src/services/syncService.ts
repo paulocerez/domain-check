@@ -323,6 +323,26 @@ export function toRegistrarOwnedValues(
     revivePossibleUntil: summary.revivePossibleUntil ?? null,
   };
 
+  // Fields a rich list endpoint may already have answered for. `undefined` means
+  // this registrar's list call does not carry them (IONOS), so the key must stay
+  // *absent* from `source` and the stored value must survive — writing `?? null`
+  // here instead would null out every expiry on the next quick IONOS sync.
+  const fromRichSummary: Record<string, unknown> = {
+    expirationDate: summary.expirationDate,
+    cancellationDate: summary.cancellationDate,
+    autoRenew: summary.autoRenew,
+    cancelOnExpire: summary.cancelOnExpire,
+    domainLock: summary.domainLock,
+    transferLock: summary.transferLock,
+    privacyEnabled: summary.privacyEnabled,
+    dnsSecEnabled: summary.dnsSecEnabled,
+    domainType: summary.domainType,
+  };
+  for (const [key, value] of Object.entries(fromRichSummary)) {
+    if (value !== undefined) source[key] = value;
+  }
+
+  // A detail is authoritative and complete, so it overwrites unconditionally.
   if (detail) {
     Object.assign(source, {
       expirationDate: detail.expirationDate ?? null,

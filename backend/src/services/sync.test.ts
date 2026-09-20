@@ -4,12 +4,18 @@ import type { Database } from '../db/client.js';
 import { alertLog, domains, syncChanges, tldPrices, type RegistrarAccountRow } from '../db/schema.js';
 import { MockRegistrar } from '../registrars/mock/index.js';
 import { FIXTURE_SPECS } from '../registrars/mock/fixtures.js';
-import type { Registrar } from '../registrars/types.js';
+import type { Registrar, RegistrarDomainSummary } from '../registrars/types.js';
 import { createHarness, resetDatabase, seedBaseline, type TestHarness } from '../test/helpers.js';
 import { runAlerts } from './alertService.js';
 import { loadDomainContext } from './domainService.js';
 import { getSettings } from './settingsService.js';
-import { createSyncRun, runSync, syncAccount, SyncInProgressError } from './syncService.js';
+import {
+  createSyncRun,
+  runSync,
+  syncAccount,
+  SyncInProgressError,
+  toRegistrarOwnedValues,
+} from './syncService.js';
 import type { EmailTransport } from './emailTransport.js';
 
 let harness: TestHarness;
@@ -312,5 +318,71 @@ describe('cost data', () => {
     await expect(
       db.insert(tldPrices).values({ tld: 'de', renewalCents: 999, currency: 'EUR' }),
     ).rejects.toThrow();
+  });
+});
+
+/**
+ * The undefined-vs-null contract on `RegistrarDomainSummary`.
+ *
+ * A registrar whose list endpoint is rich enough (GoDaddy) reports these in
+ * phase one; one whose list endpoint is not (IONOS) leaves them `undefined`.
+ * Conflating the two would make a quick IONOS sync wipe every expiry in the
+ * portfolio, which is why it is asserted directly rather than only through the
+ * end-to-end quick-sync case above.
+ */
+describe('toRegistrarOwnedValues', () => {
+  const base: RegistrarDomainSummary = {
+    registrarDomainId: 'id-1',
+    name: 'example.com',
+    tld: 'com',
+    pendingProvisioning: false,
+  };
+
+  it('omits fields the summary does not mention, so the stored value survives', () => {
+    const values = toRegistrarOwnedValues(base, null) as Record<string, unknown>;
+    expect('expirationDate' in values).toBe(false);
+    expect('autoRenew' in values).toBe(false);
+    expect('domainLock' in values).toBe(false);
+  });
+
+  it('writes fields a rich summary does supply, with no detail fetch', () => {
+    const expires = new Date('2027-04-02T07:17:45.000Z');
+    const values = toRegistrarOwnedValues(
+      { ...base, expirationDate: expires, autoRenew: true, domainLock: false },
+      null,
+    ) as Record<string, unknown>;
+
+    expect(values.expirationDate).toEqual(expires);
+    expect(values.autoRenew).toBe(true);
+    expect(values.domainLock).toBe(false);
+  });
+
+  it('writes an explicit null from a summary, because that is an answer', () => {
+    const values = toRegistrarOwnedValues({ ...base, expirationDate: null }, null) as Record<string, unknown>;
+    expect('expirationDate' in values).toBe(true);
+    expect(values.expirationDate).toBeNull();
+  });
+
+  it('lets an authoritative detail override what the summary said', () => {
+    const fromList = new Date('2027-01-01T00:00:00.000Z');
+    const fromDetail = new Date('2028-01-01T00:00:00.000Z');
+    const values = toRegistrarOwnedValues(
+      { ...base, expirationDate: fromList, autoRenew: true },
+      { ...base, expirationDate: fromDetail, autoRenew: false, raw: {} },
+    ) as Record<string, unknown>;
+
+    expect(values.expirationDate).toEqual(fromDetail);
+    expect(values.autoRenew).toBe(false);
+  });
+
+  it('never emits a user-owned column, whatever the summary carries', () => {
+    const values = toRegistrarOwnedValues(
+      { ...base, expirationDate: new Date() },
+      { ...base, raw: { priceOverrideCents: 9999, notes: 'from the registrar' } },
+    ) as Record<string, unknown>;
+
+    for (const field of ['priceOverrideCents', 'priceCurrency', 'notes', 'tags', 'isFavorite']) {
+      expect(values).not.toHaveProperty(field);
+    }
   });
 });

@@ -9,7 +9,19 @@ import type { RegistrarCapabilities, RegistrarKind } from '@domain-check/shared'
  * we have not validated.
  */
 
-/** What the cheap list endpoint can tell us about a domain. */
+/**
+ * What the cheap list endpoint can tell us about a domain.
+ *
+ * How much that is varies sharply by registrar, which is why so much of this is
+ * optional. IONOS's list yields identity plus a status block and nothing else,
+ * so everything below `setToExpireOn` is `undefined` until the detail fetch.
+ * A registrar whose list endpoint is richer fills them in phase one.
+ *
+ * `undefined` and `null` are *not* interchangeable here. `undefined` means "this
+ * registrar did not tell us"; sync leaves the stored value alone. `null` means
+ * "the registrar told us there is no value"; sync writes the null. See
+ * `toRegistrarOwnedValues` in syncService.
+ */
 export interface RegistrarDomainSummary {
   registrarDomainId: string;
   /** Lowercased. Unicode form for IDNs. */
@@ -32,10 +44,9 @@ export interface RegistrarDomainSummary {
   transferStatus?: string | null;
   isAutorenewSwitchable?: boolean | null;
   revivePossibleUntil?: Date | null;
-}
 
-/** Everything above plus the fields that require a per-domain request. */
-export interface RegistrarDomainDetail extends RegistrarDomainSummary {
+  // --- present only where the list endpoint is rich enough to answer ---
+  /** The authoritative expiry, as opposed to `setToExpireOn`. */
   expirationDate?: Date | null;
   cancellationDate?: Date | null;
   autoRenew?: boolean | null;
@@ -45,6 +56,16 @@ export interface RegistrarDomainDetail extends RegistrarDomainSummary {
   privacyEnabled?: boolean | null;
   dnsSecEnabled?: boolean | null;
   domainType?: string | null;
+}
+
+/**
+ * Everything above, guaranteed complete for this registrar, plus the payload.
+ *
+ * The distinction from `RegistrarDomainSummary` is no longer about which fields
+ * exist — it is that a detail is authoritative: sync writes every field it
+ * carries, nulls included.
+ */
+export interface RegistrarDomainDetail extends RegistrarDomainSummary {
   /** Raw payload, minus anything secret. Stored for debugging and future fields. */
   raw: unknown;
 }

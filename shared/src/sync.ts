@@ -78,10 +78,18 @@ export interface RegistrarAccountDTO {
 
 export interface RegistrarCapabilities {
   /**
-   * Whether the registrar reports renewal pricing. False for IONOS, which is
-   * why prices are user-maintained; the UI reads this to explain that.
+   * Whether the registrar reports renewal pricing for domains you already own.
+   * False for every adapter so far, which is why prices are user-maintained;
+   * the UI reads this to explain that. Note this is a different number from the
+   * *registration* price an availability check returns — see `availability`.
    */
   pricing: boolean;
   detailFetch: boolean;
   nameservers: boolean;
+  /**
+   * Whether the registrar can answer "is this name free, and what would it
+   * cost to register?". False for IONOS; the availability page is gated on at
+   * least one configured account reporting true.
+   */
+  availability: boolean;
 }

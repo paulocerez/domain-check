@@ -1,6 +1,12 @@
 import type { RegistrarCapabilities } from '@domain-check/shared';
 import { mapDetail, mapSummary } from '../ionos/mapper.js';
-import type { Registrar, RegistrarDomainDetail, RegistrarDomainSummary, CredentialCheck } from '../types.js';
+import type {
+  CredentialCheck,
+  DomainAvailability,
+  Registrar,
+  RegistrarDomainDetail,
+  RegistrarDomainSummary,
+} from '../types.js';
 import { RegistrarError } from '../types.js';
 import { FIXTURE_SPECS, buildLarge, buildSmall, findSpec } from './fixtures.js';
 
@@ -25,10 +31,15 @@ export interface MockRegistrarOptions {
 export class MockRegistrar implements Registrar {
   readonly kind = 'mock' as const;
   readonly capabilities: RegistrarCapabilities = {
-    // Mirrors IONOS: no registrar supplies pricing, so prices stay user-owned.
+    // Mirrors IONOS: no registrar supplies renewal pricing, so prices stay
+    // user-owned.
     pricing: false,
     detailFetch: true,
     nameservers: false,
+    // Unlike the other two flags this one is *not* mirrored from IONOS. The
+    // availability page has to be buildable and demoable without credentials,
+    // which is the whole point of having fixtures.
+    availability: true,
   };
 
   private readonly failureMode: MockFailureMode;
@@ -95,6 +106,74 @@ export class MockRegistrar implements Registrar {
     }
     return mapDetail(buildLarge(spec, this.now()));
   }
+
+  /**
+   * Deterministic availability, with no network and no clock.
+   *
+   * A name already in the fixture portfolio is unavailable — that is what makes
+   * the "you already own this" path reachable. Everything else is decided by a
+   * hash of the name, so the same query always gives the same answer and a
+   * screenshot in a bug report stays reproducible. Two names are singled out by
+   * suffix so the non-definitive and per-name-error rows can be seen at all.
+   */
+  async checkAvailability(names: string[]): Promise<DomainAvailability[]> {
+    if (this.failureMode === '401') {
+      throw new RegistrarError('auth', 'Mock auth failure (MOCK_FAILURE_MODE=401)', { httpStatus: 401 });
+    }
+    if (this.failureMode === 'slow') await delay(600);
+
+    const owned = new Set(FIXTURE_SPECS.map((spec) => spec.name));
+
+    return names.map((name) => {
+      if (name.endsWith('.invalid')) {
+        return {
+          name,
+          available: false,
+          definitive: false,
+          priceCents: null,
+          currency: null,
+          periodYears: null,
+          error: 'Mock: unsupported TLD',
+        };
+      }
+
+      const tld = name.slice(name.lastIndexOf('.') + 1);
+      const available = !owned.has(name) && hash(name) % 3 !== 0;
+
+      return {
+        name,
+        available,
+        // ".test" names come back cached, so the "not definitive" hint renders.
+        definitive: !name.endsWith('.test'),
+        priceCents: available ? (MOCK_PRICES[tld] ?? 1900) : null,
+        currency: available ? 'EUR' : null,
+        periodYears: available ? 1 : null,
+        error: null,
+      };
+    });
+  }
+}
+
+/** Indicative registration prices, in minor units. Fixtures, not a price list. */
+const MOCK_PRICES: Record<string, number> = {
+  com: 1200,
+  de: 900,
+  net: 1500,
+  org: 1500,
+  io: 4500,
+  dev: 1500,
+  app: 1800,
+  ai: 8900,
+};
+
+/** FNV-1a, for a stable answer per name without pulling in a dependency. */
+function hash(value: string): number {
+  let result = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    result ^= value.charCodeAt(i);
+    result = Math.imul(result, 16777619);
+  }
+  return result >>> 0;
 }
 
 function delay(ms: number) {

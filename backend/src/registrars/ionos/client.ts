@@ -29,6 +29,9 @@ export class IonosRegistrar implements Registrar {
     pricing: false,
     detailFetch: true,
     nameservers: true,
+    // The Domains API has no availability or price-check endpoint either; it
+    // only ever talks about domains the tenant already holds.
+    availability: false,
   };
 
   private readonly http: AxiosInstance;

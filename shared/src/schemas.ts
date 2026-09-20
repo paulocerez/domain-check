@@ -108,6 +108,40 @@ export const testAlertBodySchema = z
   .object({ to: z.string().email().optional() })
   .strict();
 
+/**
+ * A fully-qualified name to check for availability.
+ *
+ * Stricter than `tldSchema`: at least one dot, because a bare label is never a
+ * registrable domain and sending it upstream just burns a request on a 422.
+ */
+export const domainNameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(253)
+  .regex(
+    /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/,
+    'Enter a full domain name, e.g. example.com',
+  );
+
+/**
+ * POST /api/availability
+ *
+ * Capped at 50 names per request. The GoDaddy bulk endpoint accepts far more,
+ * but this is a keyboard-driven UI pasting a list by hand, and a low cap keeps
+ * one fat-fingered paste from spending a minute of the rate-limit budget.
+ */
+export const availabilityBodySchema = z
+  .object({
+    names: z
+      .array(domainNameSchema)
+      .min(1, 'Enter at least one domain name')
+      .max(50, 'Check at most 50 names at a time')
+      .transform((names) => [...new Set(names)]),
+  })
+  .strict();
+
 export const bulkTldPriceBodySchema = z
   .object({
     currency: currencySchema,
@@ -125,3 +159,4 @@ export type DomainQuery = z.infer<typeof domainQuerySchema>;
 export type StartSyncBody = z.infer<typeof startSyncBodySchema>;
 export type UpdateSettingsBody = z.infer<typeof updateSettingsBodySchema>;
 export type BulkTldPriceBody = z.infer<typeof bulkTldPriceBodySchema>;
+export type AvailabilityBody = z.infer<typeof availabilityBodySchema>;

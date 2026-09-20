@@ -15,7 +15,8 @@ import type { RegistrarCapabilities, RegistrarKind } from '@domain-check/shared'
  * How much that is varies sharply by registrar, which is why so much of this is
  * optional. IONOS's list yields identity plus a status block and nothing else,
  * so everything below `setToExpireOn` is `undefined` until the detail fetch.
- * A registrar whose list endpoint is richer fills them in phase one.
+ * GoDaddy's list already returns the authoritative `expires`, `renewAuto`,
+ * `locked` and `privacy`, so it fills them in phase one.
  *
  * `undefined` and `null` are *not* interchangeable here. `undefined` means "this
  * registrar did not tell us"; sync leaves the stored value alone. `null` means
@@ -45,7 +46,7 @@ export interface RegistrarDomainSummary {
   isAutorenewSwitchable?: boolean | null;
   revivePossibleUntil?: Date | null;
 
-  // --- present only where the list endpoint is rich enough to answer ---
+  // --- present only where the list endpoint is rich enough (GoDaddy) ---
   /** The authoritative expiry, as opposed to `setToExpireOn`. */
   expirationDate?: Date | null;
   cancellationDate?: Date | null;
@@ -70,6 +71,31 @@ export interface RegistrarDomainDetail extends RegistrarDomainSummary {
   raw: unknown;
 }
 
+/**
+ * The answer to "is this name free, and what would registering it cost?".
+ *
+ * A read about a name we do *not* own — the one outward-looking call in an
+ * otherwise portfolio-scoped abstraction.
+ */
+export interface DomainAvailability {
+  /** Lowercased, echoed back so results stay in the caller's order. */
+  name: string;
+  available: boolean;
+  /**
+   * False when the registrar answered from a cache rather than the registry.
+   * A non-definitive "available" is a hint, not a reservation.
+   */
+  definitive: boolean;
+  /** Registration price in minor units — the repo-wide money convention. */
+  priceCents: number | null;
+  /** ISO-4217. Null whenever `priceCents` is null. */
+  currency: string | null;
+  /** The registration term `priceCents` covers. */
+  periodYears: number | null;
+  /** Per-name failure (unsupported TLD, malformed name). The row is unusable. */
+  error: string | null;
+}
+
 export type CredentialCheck = { ok: true } | { ok: false; reason: string };
 
 export interface Registrar {
@@ -80,6 +106,14 @@ export interface Registrar {
   /** Paginates internally and returns the complete portfolio. */
   listDomains(opts?: { signal?: AbortSignal }): Promise<RegistrarDomainSummary[]>;
   getDomainDetail(registrarDomainId: string): Promise<RegistrarDomainDetail>;
+  /**
+   * Checks names the account does not own. Optional, and present exactly when
+   * `capabilities.availability` is true — callers must check that flag rather
+   * than probing for the method, so the UI can explain *why* it is unavailable.
+   *
+   * Chunks internally; returns one result per input name, in input order.
+   */
+  checkAvailability?(names: string[], opts?: { signal?: AbortSignal }): Promise<DomainAvailability[]>;
 }
 
 /**

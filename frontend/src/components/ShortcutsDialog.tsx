@@ -16,6 +16,7 @@ const SECTIONS = [
     items: [
       ['g then h', 'Dashboard'],
       ['g then d', 'Domains'],
+      ['g then a', 'Availability'],
       ['g then p', 'Prices'],
       ['g then y', 'Sync history'],
       ['g then s', 'Settings'],

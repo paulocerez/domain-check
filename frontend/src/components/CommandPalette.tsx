@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Command } from 'cmdk';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@domain-check/shared';
-import { Globe, Keyboard, LayoutDashboard, RefreshCw, Send, Settings, Tags } from 'lucide-react';
+import { Globe, Keyboard, LayoutDashboard, RefreshCw, ScanSearch, Send, Settings, Tags } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/sheet';
 import { useDomains, useTestAlert } from '@/api/hooks';
@@ -58,6 +58,11 @@ export function CommandPalette({
             <Group heading="Go to">
               <Item onSelect={() => run(() => navigate('/'))} icon={LayoutDashboard} label="Dashboard" />
               <Item onSelect={() => run(() => navigate('/domains'))} icon={Globe} label="Domains" />
+              <Item
+                onSelect={() => run(() => navigate('/availability'))}
+                icon={ScanSearch}
+                label="Check availability"
+              />
               <Item onSelect={() => run(() => navigate('/prices'))} icon={Tags} label="Prices" />
               <Item onSelect={() => run(() => navigate('/sync'))} icon={RefreshCw} label="Sync history" />
               <Item onSelect={() => run(() => navigate('/settings'))} icon={Settings} label="Settings" />

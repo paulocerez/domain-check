@@ -8,6 +8,7 @@ import type {
   AlertLogDTO,
   AppSettingsDTO,
   CostByTldDTO,
+  DomainAvailabilityDTO,
   DomainDTO,
   DomainDetailDTO,
   ExpiryBucketsDTO,
@@ -58,6 +59,7 @@ export const queryKeys = {
   syncRun: (id: string) => ['sync', 'run', id] as const,
   settings: ['settings'] as const,
   alerts: ['alerts'] as const,
+  availabilitySupport: ['availability', 'support'] as const,
 };
 
 type Opts<T> = Omit<UseQueryOptions<T>, 'queryKey' | 'queryFn'>;
@@ -178,6 +180,22 @@ export function useSyncRun(id: string | undefined) {
     queryFn: async () =>
       (await api.get<{ run: SyncRunDTO; changes: SyncChangeDTO[] }>(`/sync/runs/${id}`)).data,
     enabled: Boolean(id),
+  });
+}
+
+/**
+ * Whether *any* configured account can answer an availability check.
+ *
+ * Asked of the server rather than derived from `/registrar-accounts`, because
+ * the real predicate is four terms — enabled, capable, credentialed, and not
+ * overridden by mock mode — and duplicating it here is how the two drift.
+ */
+export function useAvailabilitySupport() {
+  return useQuery({
+    queryKey: queryKeys.availabilitySupport,
+    queryFn: async () =>
+      (await api.get<{ supported: boolean; registrarLabel: string | null }>('/availability/support'))
+        .data,
   });
 }
 
@@ -309,6 +327,17 @@ export function useUpdateSettings() {
       client.invalidateQueries({ queryKey: ['stats'] });
       client.invalidateQueries({ queryKey: ['domains'] });
     },
+  });
+}
+
+/**
+ * A mutation rather than a query: it costs an upstream request per call and
+ * should fire when the user asks, not when a component happens to mount.
+ */
+export function useCheckAvailability() {
+  return useMutation({
+    mutationFn: async (names: string[]) =>
+      (await api.post<DomainAvailabilityDTO[]>('/availability', { names })).data,
   });
 }
 

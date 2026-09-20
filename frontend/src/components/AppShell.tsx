@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Calendar,
   Globe,
+  ScanSearch,
   LayoutDashboard,
   RefreshCw,
   Search,
@@ -22,6 +23,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, chord: 'g h' },
   { to: '/domains', label: 'Domains', icon: Globe, chord: 'g d' },
+  { to: '/availability', label: 'Availability', icon: ScanSearch, chord: 'g a' },
   { to: '/prices', label: 'Prices', icon: Tags, chord: 'g p' },
   { to: '/sync', label: 'Sync', icon: RefreshCw, chord: 'g y' },
   { to: '/settings', label: 'Settings', icon: SettingsIcon, chord: 'g s' },
@@ -52,6 +54,7 @@ export function AppShell() {
     { keys: '?', handler: () => setShortcutsOpen(true) },
     { keys: 'g h', handler: () => navigate('/') },
     { keys: 'g d', handler: () => navigate('/domains') },
+    { keys: 'g a', handler: () => navigate('/availability') },
     { keys: 'g p', handler: () => navigate('/prices') },
     { keys: 'g y', handler: () => navigate('/sync') },
     { keys: 'g s', handler: () => navigate('/settings') },

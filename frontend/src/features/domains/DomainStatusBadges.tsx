@@ -60,6 +60,9 @@ export function DomainStatusBadges({ domain, compact = false }: { domain: Domain
     );
   }
 
+  // `provisioningStatus` carries whichever registrar's vocabulary produced the
+  // row — IONOS's REGISTRATION_IN_PROGRESS/EXPIRING, or GoDaddy's PENDING_*/
+  // AWAITING_*/EXPIRED. Both map onto the same two badges.
   if (domain.pendingProvisioning || domain.provisioningStatus === 'REGISTRATION_IN_PROGRESS') {
     badges.push(
       <Badge key="provisioning" variant="accent">
@@ -69,10 +72,23 @@ export function DomainStatusBadges({ domain, compact = false }: { domain: Domain
     );
   }
 
-  if (domain.provisioningStatus === 'EXPIRING') {
+  if (domain.provisioningStatus === 'EXPIRING' || domain.provisioningStatus === 'EXPIRED') {
     badges.push(
       <Badge key="expiring" variant="urgent">
-        Expiring
+        {domain.provisioningStatus === 'EXPIRED' ? 'Expired' : 'Expiring'}
+      </Badge>,
+    );
+  }
+
+  if (
+    domain.provisioningStatus === 'TRANSFERRED_OUT' ||
+    domain.provisioningStatus === 'CANCELLED' ||
+    domain.provisioningStatus === 'CANCELLED_HELD' ||
+    domain.provisioningStatus === 'CANCELLED_REDEEMABLE'
+  ) {
+    badges.push(
+      <Badge key="gone" variant="urgent">
+        {domain.provisioningStatus === 'TRANSFERRED_OUT' ? 'Transferred out' : 'Cancelled'}
       </Badge>,
     );
   }

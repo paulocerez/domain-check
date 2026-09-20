@@ -34,7 +34,7 @@ export function PricesPage() {
     <>
       <PageHeader
         title="Prices"
-        subtitle="IONOS does not report pricing, so these are yours to maintain"
+        subtitle="No registrar reports renewal pricing, so these are yours to maintain"
         actions={
           <Button size="sm" onClick={() => setBulkOpen(true)}>
             <Plus className="size-3.5" />

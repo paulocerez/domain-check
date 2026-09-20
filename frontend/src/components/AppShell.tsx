@@ -123,7 +123,7 @@ export function AppShell() {
 
           {health.data?.registrarMode === 'mock' ? (
             <Tooltip
-              content="MOCK_REGISTRAR=1 — this is fixture data. Set it to 0 and provide IONOS_API_KEY for your real portfolio."
+              content="MOCK_REGISTRAR=1 — this is fixture data. Set it to 0 and provide your registrar's API credentials for your real portfolio."
               side="top"
             >
               <div className="mt-2">

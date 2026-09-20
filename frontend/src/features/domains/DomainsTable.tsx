@@ -157,7 +157,7 @@ export function DomainsTable({
 
               <td className="px-2.5">
                 {price.renewalCents === null ? (
-                  <Tooltip content="No price for this TLD yet. IONOS does not report pricing, so it has to be entered on the Prices page.">
+                  <Tooltip content="No price for this TLD yet. No registrar reports renewal pricing, so it has to be entered on the Prices page.">
                     <span className="text-[11px] italic text-disabled">set price</span>
                   </Tooltip>
                 ) : (

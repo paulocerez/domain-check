@@ -245,8 +245,8 @@ function CostSection({ domain, autoFocus }: { domain: DomainDetailDTO; autoFocus
           </Button>
         </div>
         <p className="mt-1.5 text-[11px] text-disabled">
-          Leave empty to use the .{domain.tld} price. IONOS does not report pricing, so every figure
-          here is yours.
+          Leave empty to use the .{domain.tld} price. No registrar reports renewal pricing, so every
+          figure here is yours.
         </p>
       </div>
     </section>

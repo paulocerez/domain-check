@@ -1,4 +1,5 @@
 import {
+  availabilityBodySchema,
   bulkTldPriceBodySchema,
   domainQuerySchema,
   startSyncBodySchema,
@@ -23,6 +24,7 @@ import { HttpError, notFound } from '../middleware/errorHandler.js';
 import { asyncHandler, parseBody, parseQuery } from '../middleware/validate.js';
 import { capabilitiesFor, createRegistrar, isCredentialConfigured } from '../registrars/registry.js';
 import { runAlerts, sendTestAlert } from '../services/alertService.js';
+import { checkAvailability, findAvailabilityAccount } from '../services/availabilityService.js';
 import {
   deleteDomain,
   getDomainDetail,
@@ -278,6 +280,37 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
       });
       if (!account) throw notFound('Registrar account');
       res.json(ok(await createRegistrar(account).verifyCredentials()));
+    }),
+  );
+
+  // --- availability ---------------------------------------------------------
+
+  /**
+   * POST rather than GET: 50 names do not belong in a query string, and this
+   * costs an upstream request per call, so it should not look cacheable.
+   */
+  router.post(
+    '/availability',
+    asyncHandler(async (req, res) => {
+      const { names } = parseBody(availabilityBodySchema, req);
+      res.json(ok(await checkAvailability(db, names)));
+    }),
+  );
+
+  /** Lets the UI gate the page without guessing from the capability list. */
+  router.get(
+    '/availability/support',
+    asyncHandler(async (_req, res) => {
+      const account = await findAvailabilityAccount(db);
+      res.json(
+        ok({
+          supported: account !== null,
+          // In mock mode the answer comes from fixtures whatever the account
+          // says, so naming the registrar would be a straight lie in the one
+          // place the user is deciding whether to trust a result.
+          registrarLabel: account === null ? null : isMockMode ? 'fixtures' : account.label,
+        }),
+      );
     }),
   );
 

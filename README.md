@@ -7,19 +7,22 @@ keyboard-driven dashboard.
   <img src="frontend/public/ionos_logo.png" alt="IONOS" width="200" />
 </div>
 
-IONOS is implemented today, behind a pluggable registrar interface. GoDaddy is
-the next adapter, not a rewrite.
+IONOS and GoDaddy are implemented today, behind a pluggable registrar
+interface. Adding a third is an adapter, not a rewrite.
 
 ---
 
 ## The one thing to know
 
-**The IONOS Domains API exposes no pricing data at all** — there is no price,
-cost or currency field anywhere in its OpenAPI document (a copy is committed at
-[`docs/ionos-domains-openapi.yaml`](docs/ionos-domains-openapi.yaml)).
+**No registrar reports what a renewal will cost you.** The IONOS Domains API
+has no price, cost or currency field anywhere in its OpenAPI document (a copy is
+committed at [`docs/ionos-domains-openapi.yaml`](docs/ionos-domains-openapi.yaml)).
+GoDaddy quotes a price when you *check availability* for a name you do not own,
+but that is a registration price for a new name — not the renewal price on your
+invoice, which depends on your account, promotions and term.
 
 So cost is permanently *your* data, not synced data. The database is not a cache
-of IONOS; it is a join of two things:
+of the registrar; it is a join of two things:
 
 | Registrar-owned | User-owned |
 | --- | --- |
@@ -104,6 +107,29 @@ round trips, so latency dominates.
 4. Run a **Quick** sync first — one cheap pass that proves pagination and auth —
    and check the domain count against the IONOS console. Then run a full sync.
 
+### Going live against GoDaddy
+
+1. Create a key pair at <https://developer.godaddy.com/keys>. GoDaddy issues a
+   **key and a secret**, both secret, sent as `Authorization: sso-key <key>:<secret>`.
+2. Put them in `.env` as `GODADDY_API_KEY` and `GODADDY_API_SECRET`, then run
+   `npm run db:seed` again — the GoDaddy account row is only created once the
+   key is present, so an IONOS-only install is never nagged about an account it
+   does not have. Set `MOCK_REGISTRAR=0` and restart.
+3. **Settings → Verify**, then Quick, then Full, exactly as above.
+
+Two things to know before you start:
+
+- **Production API access is gated.** GoDaddy restricts it to accounts holding
+  20+ domains or a Discount Domain Club subscription; without that, a production
+  key answers `403` on `/v1/domains`. The OTE sandbox
+  (`GODADDY_BASE_URL=https://api.ote-godaddy.com`) is unrestricted but issues
+  its own key pair and has its own test portfolio.
+- **The account row stores one credential name, and GoDaddy needs two.** Rather
+  than add a column only one registrar would ever use, the secret is resolved by
+  convention: `credential_ref` names the key, and the secret is always read from
+  `GODADDY_API_SECRET`. `isCredentialConfigured` checks both, so a half-filled
+  `.env` shows as unconfigured instead of as a green tick that then 401s.
+
 > ⚠️ **This app has no authentication.** Anyone who can reach the port is the
 > user. It binds to `127.0.0.1` by default; keep it there, reach it over a
 > tunnel or VPN, or put a reverse proxy with basic-auth in front. API keys are
@@ -112,20 +138,25 @@ round trips, so latency dominates.
 
 ## How sync works
 
-Two phases, because the API offers expiry at two fidelities:
+Two phases, because a list endpoint and a detail endpoint answer at different
+fidelities — and *how* different depends on the registrar:
 
-1. **List** — `GET /v1/domainitems?includeDomainStatus=true` returns the whole
-   portfolio, including `status.provisioningStatus.setToExpireOn`, in
-   `ceil(count / 100)` requests.
-2. **Detail** — the authoritative `expirationDate`, plus `autoRenew`,
-   `cancelOnExpire` and the locks, need one request *per domain*. These run
-   under a concurrency cap (`IONOS_CONCURRENCY`, default 4) with retry and
-   backoff on 429/5xx.
+1. **List** — the whole portfolio in a handful of requests. IONOS
+   (`GET /v1/domainitems?includeDomainStatus=true`, offset pagination) yields
+   only `status.provisioningStatus.setToExpireOn`. GoDaddy (`GET /v1/domains`,
+   **marker** pagination) already returns the authoritative `expires` plus
+   `renewAuto`, `locked` and `privacy`.
+2. **Detail** — one request *per domain*, under a concurrency cap
+   (`REGISTRAR_CONCURRENCY`, default 4) with retry and backoff on 429/5xx.
 
-`mode: 'quick'` skips phase 2 and leaves those columns at their previous values
-rather than nulling them. The app sorts and alerts on
-`COALESCE(expiration_date, set_to_expire_on)`, so a quick sync still yields a
-usable dashboard.
+`mode: 'quick'` skips phase 2. Which columns that leaves stale is therefore a
+per-registrar question, and the abstraction answers it by distinguishing
+`undefined` from `null` on `RegistrarDomainSummary`: `undefined` means "this
+registrar's list call does not carry this field", so sync omits the column from
+the `SET` clause and the stored value survives; `null` means "the registrar says
+there is no value", so sync writes the null. In practice a quick IONOS sync
+keeps its previous expiry, while a quick GoDaddy sync updates it. The app sorts
+and alerts on `COALESCE(expiration_date, set_to_expire_on)` either way.
 
 A few deliberate behaviours:
 
@@ -160,6 +191,37 @@ Berlin time must read as "tomorrow" in Berlin.
 With `RESEND_API_KEY` unset, a console transport renders and logs the digest
 instead — so the whole alert path is testable offline.
 
+## Availability
+
+The one place this app looks outward at names you do *not* own, on the
+**Availability** page (`g` then `a`). Paste a list, get one row per name: free
+or taken, the registration price, and — the part a registrar's own search will
+not tell you — whether it is already in your portfolio, linked straight to its
+detail drawer.
+
+It is still a read. The registrar abstraction is deliberately read-only (no
+renew, transfer or register methods), and checking availability does not change
+that; nothing here spends money.
+
+Not every registrar can answer. IONOS exposes no availability endpoint at all,
+so the capability is declared per adapter (`RegistrarCapabilities.availability`)
+and the page explains what to configure rather than offering a button that
+fails. `GET /api/availability/support` is the single place that predicate lives
+— enabled, capable, credentialed, and not overridden by mock mode — so the UI
+cannot drift from the server's answer.
+
+Two caveats worth surfacing, both of which the UI does:
+
+- **The price is a registration price**, for a name you do not own. It is not
+  what renewal will cost you, which is why it does not flow into the cost
+  dashboard.
+- **A non-definitive answer is a hint.** GoDaddy can answer from its cache
+  rather than the registry; those rows are flagged "Not confirmed". The adapter
+  asks for `checkType=FULL`, so this should be rare.
+
+In mock mode the fixture adapter answers, so the whole page works offline —
+including the owned, available, non-definitive and per-name-error states.
+
 ## Costs
 
 Resolution chain: **per-domain override → TLD table → unknown**.
@@ -183,7 +245,7 @@ recomputation.
 shared/     types, zod schemas, and the pure cost functions used by BOTH sides
 backend/    Express API
   db/         Drizzle schema, migrations, seed
-  registrars/ Registrar interface, IONOS client, fixture adapter
+  registrars/ Registrar interface, IONOS + GoDaddy clients, fixture adapter
   services/   sync, cost, alerts, stats, settings
   routes/     the REST surface
 frontend/   Vite + React SPA, Tailwind v4, dark-first
@@ -210,12 +272,14 @@ Every response is `{ok: true, data, meta?}` or
 | `GET /api/stats/{summary,cost-by-tld,renewal-calendar,expiry-buckets,expiry-timeline}` | |
 | `GET /api/tld-prices` · `PUT /api/tld-prices/:tld` · `POST /api/tld-prices/bulk` | |
 | `GET /api/registrar-accounts` · `POST /api/registrar-accounts/:id/verify` | |
+| `POST /api/availability` | `{names: string[]}`, ≤50; returns availability, registration price and whether you already own it |
+| `GET /api/availability/support` | whether any configured account can answer at all |
 | `POST /api/sync` → `202` or `409` · `GET /api/sync/{status,runs,runs/:id}` | |
 | `GET/PATCH /api/settings` · `GET /api/alerts` · `POST /api/alerts/{run,test}` | |
 
 ## Keyboard
 
-`⌘K` palette · `/` search · `g` then `h`/`d`/`p`/`y`/`s` to navigate ·
+`⌘K` palette · `/` search · `g` then `h`/`d`/`a`/`p`/`y`/`s` to navigate ·
 `j`/`k` rows · `Enter` open · `e` edit price · `f` favourite · `?` cheat sheet.
 
 ## Scripts
@@ -230,10 +294,14 @@ Every response is `{ok: true, data, meta?}` or
 
 ## Testing
 
-Unit tests cover the IONOS mapper (IDN names, the string-typed boolean the spec
-itself emits, a missing status block), error normalisation (the documented array
-shape, an HTML 502 from a proxy, key redaction), the cost resolver and the alert
-threshold logic.
+Unit tests cover both mappers (IDN names in each direction, the string-typed
+boolean the IONOS spec itself emits, a missing status block, GoDaddy's
+micro-unit prices, and the stripping of the transfer auth code and registrant
+PII before anything is persisted), error normalisation for each registrar's
+error shape (IONOS's documented array, GoDaddy's object and its `retryAfterSec`
+body field, an HTML 502 from a proxy, credential redaction), the GoDaddy
+client's marker pagination and its handling of a `203` partial availability
+response, the cost resolver and the alert threshold logic.
 
 Integration tests run against a **real Postgres** — the behaviours worth testing
 here are the `ON CONFLICT` dedupe, advisory locks, array columns and CHECK
@@ -251,14 +319,23 @@ Fixture expiries are stored as offsets from the start of the day, not absolute
 dates. Absolute dates rot silently: six months on, your "expiring in 30 days"
 case has become an "expired 150 days ago" case and the test still passes.
 
-## Known open question
+## Known open questions
 
 **Multi-label TLDs.** Does IONOS report `uk` or `co.uk` for `vetpal.co.uk`? The
 mapper trusts the registrar's `tld` field when the name actually ends with it
 and otherwise falls back to the last label. Fixtures cannot settle which one
 IONOS really sends, and it decides whether the `domains.tld → tld_prices.tld`
-join lands. Check it against real data early — `DEBUG_REGISTRAR=1` logs raw
-requests and responses with the key redacted.
+join lands. GoDaddy reports no TLD field at all, so it *always* takes the
+fallback and always yields `uk` — the same join, reached a different way. Check
+it against real data early — `DEBUG_REGISTRAR=1` logs raw requests and responses
+with credentials redacted.
+
+**GoDaddy has not been run against a live account.** The adapter is covered by
+unit tests and was smoke-tested end to end — auth header, marker pagination,
+detail-by-name, IDN round-tripping, a `203` partial availability response — but
+against a local stub of the API, not GoDaddy itself. The first live run is
+`Settings → Verify`, then a Quick sync, then a Full sync, checking the domain
+count against the GoDaddy console at each step.
 
 ## Notes
 

@@ -13,7 +13,7 @@ import {
   type NewDomainRow,
   type RegistrarAccountRow,
 } from '../db/schema.js';
-import { env } from '../env.js';
+import { registrarConcurrency } from '../env.js';
 import { withAdvisoryLock } from '../lib/advisoryLock.js';
 import { logger } from '../lib/logger.js';
 import { createRegistrar } from '../registrars/registry.js';
@@ -187,7 +187,7 @@ async function fetchDetails(
   signal: AbortSignal | undefined,
   log: typeof logger,
 ): Promise<Map<string, RegistrarDomainDetail>> {
-  const limit = pLimit(env.IONOS_CONCURRENCY);
+  const limit = pLimit(registrarConcurrency);
   const details = new Map<string, RegistrarDomainDetail>();
 
   await Promise.all(

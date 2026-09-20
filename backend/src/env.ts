@@ -43,6 +43,23 @@ const envSchema = z.object({
   IONOS_API_KEY: z.string().optional(),
   IONOS_TENANT_ID: z.string().optional(),
   IONOS_BASE_URL: z.string().url().default('https://api.hosting.ionos.com/domains'),
+
+  /**
+   * GoDaddy signs requests with a key *and* a secret, joined as
+   * `sso-key <key>:<secret>`. Both are secret; only the key's name is stored in
+   * `registrar_accounts.credential_ref`, with the secret resolved by convention
+   * in the registry.
+   */
+  GODADDY_API_KEY: z.string().optional(),
+  GODADDY_API_SECRET: z.string().optional(),
+  /** X-Shopper-Id, for a reseller acting on a subaccount. Not a secret. */
+  GODADDY_SHOPPER_ID: z.string().optional(),
+  /** Point at https://api.ote-godaddy.com for the OTE sandbox. */
+  GODADDY_BASE_URL: z.string().url().default('https://api.godaddy.com'),
+
+  /** Parallel per-domain detail fetches during a full sync, for any registrar. */
+  REGISTRAR_CONCURRENCY: z.coerce.number().int().min(1).max(16).optional(),
+  /** Deprecated alias for REGISTRAR_CONCURRENCY, kept so existing .env files work. */
   IONOS_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
 
   MOCK_REGISTRAR: booleanish,
@@ -88,6 +105,14 @@ export type Env = typeof env;
  * connections for one user, so the direct endpoint costs nothing.
  */
 export const databaseUrl = env.DATABASE_URL_UNPOOLED ?? env.DATABASE_URL;
+
+/**
+ * How many per-domain detail requests a full sync runs in parallel.
+ *
+ * Was `IONOS_CONCURRENCY` when IONOS was the only adapter; that name is still
+ * honoured as the fallback rather than breaking every existing `.env`.
+ */
+export const registrarConcurrency = env.REGISTRAR_CONCURRENCY ?? env.IONOS_CONCURRENCY;
 
 /** True when we should talk to fixtures rather than a real registrar API. */
 export const isMockMode = env.MOCK_REGISTRAR;

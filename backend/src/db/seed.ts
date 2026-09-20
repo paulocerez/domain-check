@@ -63,6 +63,22 @@ export async function seed() {
     })
     .onConflictDoNothing({ target: [registrarAccounts.kind, registrarAccounts.label] });
 
+  // Only seeded once a key exists. An unconditional row would leave every
+  // IONOS-only install staring at a permanently unconfigured account it never
+  // asked for, and would make `/api/registrar-accounts` report a warning state
+  // that is not actually a problem.
+  if (env.GODADDY_API_KEY) {
+    await db
+      .insert(registrarAccounts)
+      .values({
+        kind: 'godaddy',
+        label: 'GoDaddy',
+        credentialRef: 'GODADDY_API_KEY',
+        tenantId: env.GODADDY_SHOPPER_ID ?? null,
+      })
+      .onConflictDoNothing({ target: [registrarAccounts.kind, registrarAccounts.label] });
+  }
+
   const counts = await db
     .select({
       tlds: sql<number>`(select count(*)::int from ${tldPrices})`,

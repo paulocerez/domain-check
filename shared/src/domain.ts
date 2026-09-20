@@ -3,8 +3,9 @@
  * fields the registrar owns (overwritten on every sync) and fields the user
  * owns (cost, notes, alert preferences) which sync must never touch.
  *
- * IONOS returns no pricing data at all, so everything financial lives on our
- * side permanently. See `pricing.ts`.
+ * No adapter reports renewal pricing for domains you already own — IONOS has no
+ * price field anywhere, and GoDaddy prices registrations rather than renewals —
+ * so everything financial lives on our side permanently. See `pricing.ts`.
  */
 
 export type RegistrarKind = 'ionos' | 'godaddy' | 'mock';
@@ -12,7 +13,38 @@ export type RegistrarKind = 'ionos' | 'godaddy' | 'mock';
 export type SyncState = 'active' | 'missing' | 'archived';
 
 /** IONOS `status.provisioningStatus.type` */
-export type ProvisioningStatus = 'REGISTRATION_IN_PROGRESS' | 'ACTIVE' | 'EXPIRING';
+export type IonosProvisioningStatus = 'REGISTRATION_IN_PROGRESS' | 'ACTIVE' | 'EXPIRING';
+
+/** GoDaddy `DomainSummary.status`. A different vocabulary for the same column. */
+export type GodaddyDomainStatus =
+  | 'ACTIVE'
+  | 'AWAITING_DOCUMENT_UPLOAD'
+  | 'AWAITING_PAYMENT'
+  | 'AWAITING_VERIFICATION'
+  | 'CANCELLED'
+  | 'CANCELLED_HELD'
+  | 'CANCELLED_REDEEMABLE'
+  | 'CONFISCATED'
+  | 'DISABLED'
+  | 'EXPIRED'
+  | 'EXPIRED_REASSIGNED'
+  | 'FAILED'
+  | 'HELD'
+  | 'PENDING'
+  | 'PENDING_DNS_ACTIVE'
+  | 'RESERVED'
+  | 'TRANSFERRED_OUT'
+  | 'UNKNOWN'
+  | 'UNLOCKED';
+
+/**
+ * The union of every registrar's status vocabulary.
+ *
+ * `domains.provisioning_status` is a plain `text` column, so this is a
+ * type-level concern only — but keeping the per-registrar unions named means a
+ * `switch` in the UI still narrows, and it documents which value came from where.
+ */
+export type ProvisioningStatus = IonosProvisioningStatus | GodaddyDomainStatus;
 
 /** IONOS `status.provisioningStatus.registrationType` */
 export type RegistrationType = 'CREATE' | 'TRANSFER' | 'SEDO_TRANSFER' | 'RESTORE';

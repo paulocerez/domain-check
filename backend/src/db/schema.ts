@@ -40,7 +40,10 @@ export const registrarAccounts = pgTable(
      * address — which matters a lot given this app has no authentication.
      */
     credentialRef: text('credential_ref').notNull(),
-    /** IONOS X-Tenant-Id, when the account requires one. Not a secret. */
+    /**
+     * The registrar's account discriminator: IONOS `X-Tenant-Id`, GoDaddy
+     * `X-Shopper-Id`. Optional for both, and not a secret either way.
+     */
     tenantId: text('tenant_id'),
     isEnabled: boolean('is_enabled').notNull().default(true),
     lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),

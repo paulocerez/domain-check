@@ -142,6 +142,30 @@ By default the backend serves the built frontend from the same process and
 port, so there is no base URL to configure and no CORS involved. `npm run
 build && npm start` is the whole deployment.
 
+### On Vercel (frontend and API together)
+
+`vercel.json` builds all three packages, serves `frontend/dist`, and routes
+`/api/*` to a catch-all function (`api/[...path].ts`) that exports the same
+Express app. Three things behave differently from a long-lived server, and the
+code adapts on its own via the `VERCEL` environment variable:
+
+| Concern | Long-lived server | Vercel |
+| --- | --- | --- |
+| Scheduling | `node-cron` in process | Vercel Cron calls `GET /api/cron/sync` |
+| Work after the response | detached promise | `waitUntil`, so the instance is not frozen mid-sync |
+| Pool size | 10 | 2 — every instance opens its own |
+
+Set `CRON_SECRET` in the project's environment; Vercel sends it as
+`Authorization: Bearer …` and the endpoint refuses with 503 when it is unset,
+rather than leaving a public "resync everything" button. The scheduled sync
+runs to completion instead of answering 202, because a scheduler has nothing to
+poll, and it takes the same advisory lock so it can never overlap a manual run.
+
+> **The database has to be reachable from Vercel.** Functions have no stable
+> egress IP outside Enterprise Secure Compute, so a Postgres behind an IP
+> allowlist will not work — use a managed provider that authenticates instead,
+> and remember the session-mode requirement above.
+
 ### Frontend on a CDN, backend elsewhere
 
 Two settings, no code changes:

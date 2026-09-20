@@ -36,6 +36,14 @@ const envSchema = z.object({
    * frontend deployed to a CDN. Empty means same-origin only.
    */
   CORS_ORIGINS: z.string().default(''),
+  /**
+   * Shared secret for the scheduled-sync endpoint. Vercel sends it as
+   * `Authorization: Bearer $CRON_SECRET` on cron invocations; without it the
+   * endpoint is a public "resync everything" button.
+   */
+  CRON_SECRET: z.string().optional(),
+  /** Set by Vercel on every deployment; absent when running as a normal server. */
+  VERCEL: z.string().optional(),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required — run `npm run db:up` and copy .env.example'),
   /**
@@ -135,3 +143,13 @@ export const registrarConcurrency = env.REGISTRAR_CONCURRENCY ?? env.IONOS_CONCU
 export const isMockMode = env.MOCK_REGISTRAR;
 
 export const isProduction = env.NODE_ENV === 'production';
+
+/**
+ * True when running as a Vercel function rather than a long-lived process.
+ *
+ * Three things have to behave differently there: in-process cron cannot run
+ * (nothing survives between invocations), background work after a response
+ * must be handed to the platform, and the connection pool has to stay small
+ * because each instance opens its own.
+ */
+export const isServerless = Boolean(env.VERCEL);

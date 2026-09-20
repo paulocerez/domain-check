@@ -19,7 +19,7 @@ import type pg from 'pg';
 import type { Database } from '../db/client.js';
 import { checkDbHealth } from '../db/client.js';
 import { domains, registrarAccounts, syncChanges } from '../db/schema.js';
-import { isMockMode } from '../env.js';
+import { env, isMockMode } from '../env.js';
 import { HttpError, notFound } from '../middleware/errorHandler.js';
 import { asyncHandler, parseBody, parseQuery } from '../middleware/validate.js';
 import { capabilitiesFor, createRegistrar, isCredentialConfigured } from '../registrars/registry.js';
@@ -48,7 +48,7 @@ import {
   getSummary,
 } from '../services/statsService.js';
 import { getSyncRun, getSyncStatus, listSyncRuns, startSync } from '../services/syncRunner.js';
-import { refreshDomainDetail } from '../services/syncService.js';
+import { SyncInProgressError, refreshDomainDetail, syncAccount } from '../services/syncService.js';
 import { alertLog } from '../db/schema.js';
 
 const ok = <T, M = undefined>(data: T, meta?: M): ApiOk<T, M> => ({ ok: true, data, ...(meta ? { meta } : {}) });
@@ -332,6 +332,51 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
       const started = await startSync(db, pool, { ...body, trigger: 'manual' });
       // 202: the run is underway; the client polls /sync/status for progress.
       res.status(202).json(ok(started));
+    }),
+  );
+
+  /**
+   * Scheduled sync, for platforms whose cron is an HTTP call rather than an
+   * in-process timer (see jobs/scheduler.ts, which stands down on serverless).
+   *
+   * Runs the sync to completion rather than answering 202: a scheduler has no
+   * one to poll for status, and returning early on a serverless runtime risks
+   * the instance being frozen mid-run.
+   */
+  router.get(
+    '/cron/sync',
+    asyncHandler(async (req, res) => {
+      const expected = env.CRON_SECRET;
+      if (!expected) {
+        // Refuse rather than run unauthenticated — otherwise this is a public
+        // endpoint that hammers the registrar API on demand.
+        throw new HttpError(503, 'INTERNAL', 'CRON_SECRET is not configured; scheduled sync is disabled');
+      }
+      if (req.headers.authorization !== `Bearer ${expected}`) {
+        throw new HttpError(401, 'REGISTRAR_AUTH', 'Invalid cron credentials');
+      }
+
+      const accounts = await db.select().from(registrarAccounts).where(eq(registrarAccounts.isEnabled, true));
+      const outcomes = [];
+      for (const account of accounts) {
+        try {
+          // syncAccount takes the advisory lock, so a scheduled run can never
+          // overlap a manual one already in flight.
+          outcomes.push(await syncAccount(db, pool, account, { mode: 'full', trigger: 'cron' }));
+        } catch (err) {
+          if (err instanceof SyncInProgressError) {
+            // Someone pressed Sync now. Skipping is correct — the data is
+            // being refreshed either way.
+            outcomes.push({ account: account.label, skipped: 'a sync was already running' });
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      const ctx = await context();
+      const alerts = await runAlerts(db, ctx);
+      res.json(ok({ runs: outcomes, alerts }));
     }),
   );
 

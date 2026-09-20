@@ -1,7 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npm run build -w shared && npm run build -w frontend",
+  "buildCommand": "npm run build -w shared && npm run build -w backend && npm run build -w frontend",
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/**": {
+      "maxDuration": 300
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/sync",
+      "schedule": "0 6 * * *"
+    }
+  ],
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }

@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import type pg from 'pg';
 import type { Database } from '../db/client.js';
+import { isServerless } from '../env.js';
 import { logger } from '../lib/logger.js';
 import { getSettings } from '../services/settingsService.js';
 import { startSync } from '../services/syncRunner.js';
@@ -23,6 +24,13 @@ const STARTUP_DELAY_MS = 30_000;
 
 export async function startScheduler(db: Database, pool: pg.Pool): Promise<void> {
   stopScheduler();
+
+  if (isServerless) {
+    // Nothing survives between invocations, so an in-process timer would never
+    // fire. The platform scheduler calls GET /api/cron/sync instead.
+    logger.info('serverless runtime — scheduling is handled by the platform cron');
+    return;
+  }
 
   const settings = await getSettings(db);
 

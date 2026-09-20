@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { databaseUrl } from '../env.js';
+import { databaseUrl, isServerless } from '../env.js';
 import { logger } from '../lib/logger.js';
 import * as schema from './schema.js';
 
@@ -15,7 +15,10 @@ pg.types.setTypeParser(1082, (value) => value);
 export function createPool(connectionString = databaseUrl) {
   const pool = new pg.Pool({
     connectionString,
-    max: 10,
+    // Every serverless instance opens its own pool, so a generous max here
+    // multiplies into the database's connection limit. One user's traffic does
+    // not need more than a couple per instance.
+    max: isServerless ? 2 : 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
   });

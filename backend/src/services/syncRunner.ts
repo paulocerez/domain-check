@@ -4,6 +4,7 @@ import type pg from 'pg';
 import type { Database } from '../db/client.js';
 import { registrarAccounts, syncRuns, type SyncRunRow } from '../db/schema.js';
 import { acquireAdvisoryLock } from '../lib/advisoryLock.js';
+import { runInBackground } from '../lib/background.js';
 import { logger } from '../lib/logger.js';
 import { runAlerts } from './alertService.js';
 import { loadDomainContext } from './domainService.js';
@@ -60,7 +61,7 @@ export async function startSync(
     locks.set(account.id, lock);
     started.push({ syncRunId, accountId: account.id, registrarLabel: account.label });
 
-    void (async () => {
+    runInBackground(async () => {
       try {
         await runSync(db, account, { mode: options.mode, trigger: options.trigger }, syncRunId);
         await afterSync(db);
@@ -70,7 +71,7 @@ export async function startSync(
       } finally {
         await releaseFor(account.id);
       }
-    })();
+    }, `sync:${account.label}`);
   }
 
   return started;

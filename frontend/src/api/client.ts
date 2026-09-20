@@ -3,10 +3,18 @@ import type { ApiResponse } from '@domain-check/shared';
 /**
  * Thin fetch wrapper over the `{ok, data} | {ok, error}` envelope.
  *
- * Always same-origin `/api/...`: the Vite dev server proxies it to the API
- * process, and in production the API serves this bundle itself. No base URL to
- * configure, no CORS to get wrong.
+ * Same-origin `/api/...` by default: the Vite dev server proxies it to the API
+ * process, and when the backend serves this bundle itself there is no base URL
+ * to configure and no CORS to get wrong.
+ *
+ * Set `VITE_API_URL` to point at a backend on a different origin — the case
+ * when the frontend is on a CDN and the API lives elsewhere (e.g. reached over
+ * a private tailnet). It must be an https:// origin: a page served over HTTPS
+ * cannot call an http:// backend, the browser blocks it as mixed content.
  */
+
+/** Trailing slash trimmed so `${API_BASE}/api` never becomes a double slash. */
+const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
 
 export class ApiError extends Error {
   constructor(
@@ -30,7 +38,7 @@ export async function request<T, M = undefined>(
   path: string,
   options: RequestOptions = {},
 ): Promise<{ data: T; meta: M | undefined }> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE}/api${path}`, {
     method: options.method ?? 'GET',
     headers: options.body !== undefined ? { 'content-type': 'application/json' } : undefined,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -47,7 +55,9 @@ export async function request<T, M = undefined>(
     // error page, or the dev server with no backend running.
     throw new ApiError(
       'INTERNAL',
-      `The server returned ${response.status} with a non-JSON body. Is the API running?`,
+      `The server returned ${response.status} with a non-JSON body. Is the API running${
+        API_BASE ? ` at ${API_BASE}` : ''
+      }?`,
       response.status,
     );
   }

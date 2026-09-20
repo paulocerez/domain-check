@@ -65,15 +65,24 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
     '/health',
     asyncHandler(async (_req, res) => {
       const dbStatus = await checkDbHealth();
-      const [account] = await db
-        .select({ lastSyncAt: sql<Date | null>`max(${registrarAccounts.lastSyncAt})` })
-        .from(registrarAccounts);
+
+      // Only query once the connection is known good. This endpoint exists to
+      // be answerable when the database is NOT, so a second query here would
+      // turn the one useful diagnostic into a 500 with a raw SQL error — and
+      // make the caller wait through a second connection timeout to get it.
+      let lastSyncAt: string | null = null;
+      if (dbStatus === 'up') {
+        const [account] = await db
+          .select({ lastSyncAt: sql<Date | null>`max(${registrarAccounts.lastSyncAt})` })
+          .from(registrarAccounts);
+        lastSyncAt = account?.lastSyncAt ? new Date(account.lastSyncAt).toISOString() : null;
+      }
 
       const payload: HealthDTO = {
         status: dbStatus === 'up' ? 'ok' : 'degraded',
         db: dbStatus,
         registrarMode: isMockMode ? 'mock' : 'live',
-        lastSyncAt: account?.lastSyncAt ? new Date(account.lastSyncAt).toISOString() : null,
+        lastSyncAt,
         version,
       };
       res.status(dbStatus === 'up' ? 200 : 503).json(ok(payload));

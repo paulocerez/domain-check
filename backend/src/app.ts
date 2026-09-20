@@ -5,7 +5,7 @@ import cors from 'cors';
 import { pinoHttp } from 'pino-http';
 import type pg from 'pg';
 import type { Database } from './db/client.js';
-import { isProduction } from './env.js';
+import { corsOrigins, isProduction } from './env.js';
 import { logger } from './lib/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createRoutes } from './routes/index.js';
@@ -25,9 +25,10 @@ export function createApp(db: Database, pool: pg.Pool): Express {
   app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
 
   // In development the Vite dev server proxies /api to this process, so
-  // requests are same-origin and CORS is only relevant if someone points a
-  // separate tool at the port.
-  app.use(cors({ origin: isProduction ? false : true }));
+  // requests are same-origin and CORS is irrelevant. In production it stays
+  // closed unless CORS_ORIGINS names the frontend's origin explicitly — never
+  // a wildcard, because every response here carries the whole portfolio.
+  app.use(cors({ origin: isProduction ? (corsOrigins.length > 0 ? corsOrigins : false) : true }));
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api', createRoutes(db, pool, APP_VERSION));

@@ -136,6 +136,46 @@ Two things to know before you start:
 > read from environment variables, never stored in the database, and no endpoint
 > returns anything matching `/key|secret|token|password/i`.
 
+## Deploying
+
+By default the backend serves the built frontend from the same process and
+port, so there is no base URL to configure and no CORS involved. `npm run
+build && npm start` is the whole deployment.
+
+### Frontend on a CDN, backend elsewhere
+
+Two settings, no code changes:
+
+| Where | Variable | Example |
+| --- | --- | --- |
+| Frontend build | `VITE_API_URL` | `https://box.tailnet-name.ts.net` |
+| Backend | `CORS_ORIGINS` | `https://domain-check.vercel.app` |
+
+Unset, both keep today's same-origin behaviour. `CORS_ORIGINS` is an explicit
+allowlist, never a wildcard — every response here carries the whole portfolio.
+
+**The backend must be HTTPS.** A page served over HTTPS cannot call an `http://`
+API; the browser blocks it as mixed content. There is no way around this, so
+plan for a certificate before splitting the deployment.
+
+**The backend must not be publicly reachable, because this app has no login.**
+The combination that satisfies both without building an auth system is
+Tailscale Serve: it issues a real Let's Encrypt certificate for a `*.ts.net`
+name, so you get a valid HTTPS origin that only your tailnet can route to.
+Tailnet membership becomes the authentication.
+
+```bash
+tailscale serve --bg 3001     # on the machine running the backend
+```
+
+Then set `VITE_API_URL` to the resulting `https://<machine>.<tailnet>.ts.net`
+and `CORS_ORIGINS` to your frontend's origin. Keep the backend bound to
+`127.0.0.1` (the default) — Tailscale proxies to it locally, so it never needs
+to listen on a public interface.
+
+The trade-off is that the dashboard only works while you are on the tailnet.
+For a single-user tool with no login, that is the point.
+
 ## How sync works
 
 Two phases, because a list endpoint and a detail endpoint answer at different

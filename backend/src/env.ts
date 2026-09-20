@@ -31,6 +31,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   HOST: z.string().default('127.0.0.1'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  /**
+   * Comma-separated origins allowed to call the API cross-origin, e.g. a
+   * frontend deployed to a CDN. Empty means same-origin only.
+   */
+  CORS_ORIGINS: z.string().default(''),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required — run `npm run db:up` and copy .env.example'),
   /**
@@ -88,6 +93,18 @@ function load() {
 export const env = load();
 
 export type Env = typeof env;
+
+/**
+ * Origins permitted to call the API from a browser.
+ *
+ * Empty by default, which means same-origin only — the right answer when the
+ * backend serves the bundle itself. Populate it when the frontend lives on a
+ * different origin; an explicit list rather than `*` because these responses
+ * carry the whole portfolio.
+ */
+export const corsOrigins: string[] = env.CORS_ORIGINS.split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 
 /**
  * The connection string the app actually uses.

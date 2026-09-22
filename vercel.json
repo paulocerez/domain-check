@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "regions": [
+    "fra1"
+  ],
   "buildCommand": "npm run build -w shared && npm run build -w backend && npm run build -w frontend",
   "outputDirectory": "frontend/dist",
   "functions": {
@@ -14,5 +17,10 @@
       "schedule": "0 6 * * *"
     }
   ],
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

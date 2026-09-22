@@ -4,7 +4,9 @@ Track domain expirations and renewal costs across registrars, in a dense
 keyboard-driven dashboard.
 
 <div align="center">
-  <img src="frontend/public/ionos_logo.png" alt="IONOS" width="200" />
+  <img src="frontend/public/ionos_logo.png" alt="IONOS" height="112" />
+  &nbsp;&nbsp;
+  <img src="frontend/public/godaddy_logo.png" alt="GoDaddy" height="112" />
 </div>
 
 IONOS and GoDaddy are implemented today, behind a pluggable registrar

@@ -175,10 +175,16 @@ build && npm start` is the whole deployment.
 
 ### On Vercel (frontend and API together)
 
-`vercel.json` builds all three packages, serves `frontend/dist`, and routes
-`/api/*` to a catch-all function (`api/[...path].ts`) that exports the same
-Express app. Three things behave differently from a long-lived server, and the
-code adapts on its own via the `VERCEL` environment variable:
+`vercel.json` builds all three packages, serves `frontend/dist`, and rewrites
+`/api/*` to a single function (`api/index.ts`) that exports the same Express
+app. That rewrite has to stay: naming the file `api/[...path].ts` and relying on
+the catch-all filename instead matched only one path segment, so `/api/health`
+answered while `/api/stats/summary` 404d at the edge without ever reaching the
+app. Vercel keeps the original path on `req.url` through a rewrite, so the
+routes mounted under `/api` need no adjusting.
+
+Three things behave differently from a long-lived server, and the code adapts on
+its own via the `VERCEL` environment variable:
 
 | Concern | Long-lived server | Vercel |
 | --- | --- | --- |

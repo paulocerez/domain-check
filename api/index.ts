@@ -1,9 +1,12 @@
 /**
  * Vercel serverless entry point.
  *
- * A catch-all so every /api/* request reaches the same Express app. The app
- * already mounts its routes under /api and Vercel leaves the full path on
- * req.url, so the two line up without rewriting anything.
+ * vercel.json rewrites every /api/* request here. That rewrite is deliberate
+ * rather than a filename catch-all: as `api/[...path].ts` this resolved as a
+ * *single* path segment, so /api/health answered while /api/stats/summary 404d
+ * at the edge without the function ever running. Vercel leaves the original
+ * path on req.url across a rewrite, so the routes the app mounts under /api
+ * still line up and nothing here has to re-derive them.
  *
  * It imports the *compiled* backend rather than its TypeScript sources: the
  * backend is a NodeNext project whose relative imports carry .js extensions,

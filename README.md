@@ -97,6 +97,37 @@ Pick a region near you. A 28-domain sync took **107 ms** against local Postgres
 and **22 s** against a US-East database from Europe — the work is many small
 round trips, so latency dominates.
 
+### Exposing Postgres to the internet
+
+Only if the database has to stay on a machine you control *and* something
+without a fixed egress IP (a serverless platform) must reach it. Order matters
+— step 3 before steps 1 and 2 means credentials in cleartext on a port that
+scanners find within hours.
+
+1. **TLS.** Give the host a DNS name, get a certificate for it
+   (`certbot certonly --standalone -d db.example.com`), then set `ssl = on`,
+   `ssl_cert_file` and `ssl_key_file`. Add a certbot deploy hook that copies
+   the renewed files and reloads Postgres — otherwise it serves the old
+   certificate from memory and connections break ~90 days later.
+2. **A non-superuser role**, granted only this database:
+   ```sql
+   CREATE ROLE domaincheck LOGIN PASSWORD '<long random>';
+   GRANT ALL ON DATABASE domain_check_db TO domaincheck;
+   ```
+   Then in `pg_hba.conf` allow only that role over TLS, and **delete the plain
+   `host` lines for remote addresses** — a `hostssl` line does nothing while a
+   `host` line still permits the downgrade:
+   ```
+   hostssl  domain_check_db  domaincheck  0.0.0.0/0  scram-sha-256
+   ```
+3. **Open the firewall** to `0.0.0.0/0` on the Postgres port.
+4. **Point the app at the hostname, not the IP** — verification matches the
+   name — and use `sslmode=require`.
+
+`npm run db:check` asserts all of it, including the two that otherwise pass
+silently: whether you are connecting as a superuser, and whether the server
+*still* accepts unencrypted connections despite TLS working.
+
 ### Going live against IONOS
 
 1. Create a key at <https://developer.hosting.ionos.com>. It has the shape

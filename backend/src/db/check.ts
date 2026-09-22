@@ -174,6 +174,50 @@ async function main() {
 
     await checkAdvisoryLocks(pool);
 
+    // --- exposure checks: only meaningful once the host is not local -------
+    if (!local) {
+      const priv = await pool.query<{ superuser: string; rolname: string }>(
+        `select current_setting('is_superuser') as superuser, current_user as rolname`,
+      );
+      const isSuper = priv.rows[0]?.superuser === 'on';
+      record(
+        isSuper ? 'fail' : 'pass',
+        isSuper ? `Connecting as a SUPERUSER (${priv.rows[0]?.rolname})` : `Connecting as a non-superuser role`,
+        isSuper
+          ? 'One guessed password would own every database on this server, not just this one.\n' +
+            '    Create a dedicated role and grant it only this database:\n' +
+            "      CREATE ROLE domaincheck LOGIN PASSWORD '<long random>';\n" +
+            '      GRANT ALL ON DATABASE <db> TO domaincheck;'
+          : 'Blast radius is limited to this database.',
+      );
+
+      // If TLS is available, is plaintext *also* still accepted? A `hostssl`
+      // line only helps when the plain `host` lines are gone, and nothing about
+      // a working TLS connection reveals that they are not.
+      if (tls === true) {
+        const plaintextUrl = new URL(databaseUrl);
+        plaintextUrl.searchParams.set('sslmode', 'disable');
+        const probe = createPool(plaintextUrl.toString());
+        let acceptedPlaintext = false;
+        try {
+          await probe.query('select 1');
+          acceptedPlaintext = true;
+        } catch {
+          acceptedPlaintext = false;
+        } finally {
+          await probe.end().catch(() => {});
+        }
+        record(
+          acceptedPlaintext ? 'fail' : 'pass',
+          acceptedPlaintext ? 'Server still accepts unencrypted connections' : 'Server refuses unencrypted connections',
+          acceptedPlaintext
+            ? 'TLS works, but a client can still negotiate down to cleartext and you would never notice.\n' +
+              '    In pg_hba.conf use hostssl for remote addresses and delete the plain host lines.'
+            : 'pg_hba.conf enforces TLS, so a downgrade is not possible.',
+        );
+      }
+    }
+
     const tables = await pool.query<{ n: string }>(
       `select count(*)::text as n from information_schema.tables
        where table_schema = 'public'

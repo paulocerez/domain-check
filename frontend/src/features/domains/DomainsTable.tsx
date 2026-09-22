@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Check, Lock, Minus, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/primitives';
 import { Tooltip } from '@/components/ui/tooltip';
 import { DomainStatusBadges } from './DomainStatusBadges';
+import { RegistrarLogo } from './RegistrarLogo';
 import { formatDate, formatDaysLeft, URGENCY_CLASS } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +29,7 @@ const COLUMNS: Array<{ key: SortKey | null; label: string; className: string }> 
   { key: null, label: '', className: 'w-7' },
   { key: 'name', label: 'Domain', className: 'w-[260px]' },
   { key: 'tld', label: 'TLD', className: 'w-20' },
+  { key: null, label: 'Source', className: 'w-[76px]' },
   { key: 'expiry', label: 'Expires', className: 'w-[116px]' },
   { key: null, label: 'Left', className: 'w-20' },
   { key: null, label: 'Renew', className: 'w-16' },
@@ -134,6 +136,10 @@ export function DomainsTable({
 
               <td className="px-2.5">
                 <Badge variant="outline">.{domain.tld}</Badge>
+              </td>
+
+              <td className="px-2.5">
+                <RegistrarLogo kind={domain.registrarKind} label={domain.registrarLabel} />
               </td>
 
               <td className="tabular whitespace-nowrap px-2.5 text-secondary">

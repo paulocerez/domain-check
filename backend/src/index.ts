@@ -3,6 +3,7 @@ import { db, pool } from './db/client.js';
 import { corsOrigins, env, isMockMode } from './env.js';
 import { logger } from './lib/logger.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
+import { provisionRegistrarAccounts } from './db/provision.js';
 import { reapStaleRuns } from './services/syncService.js';
 
 /**
@@ -39,6 +40,12 @@ async function main() {
   // serving, precisely so you can see *why* it failed.
   void (async () => {
     try {
+      // Before the scheduler: `maybeCatchUp` can fire 30s from now having never
+      // seen an HTTP request, so waiting for the request-path middleware to
+      // provision accounts would let a startup catch-up find none and return
+      // silently.
+      await provisionRegistrarAccounts(db);
+
       // A crash or restart leaves runs stuck at 'running', which would otherwise
       // pin /api/sync/status to `running: true` forever and block new syncs.
       const reaped = await reapStaleRuns(db);

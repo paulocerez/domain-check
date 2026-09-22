@@ -2,12 +2,13 @@ import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { DomainDTO } from '@domain-check/shared';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
+import { Button, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { DomainDetailSheet } from './DomainDetailSheet';
 import { DomainsTable, type SortKey } from './DomainsTable';
 import { DomainsToolbar } from './DomainsToolbar';
 import { useDomainFilters } from './useDomainFilters';
 import { useDomains, useUpdateDomainById } from '@/api/hooks';
+import { useSetupState } from '@/features/setup/useSetupState';
 import { useHotkeys } from '@/lib/keyboard';
 
 export function DomainsPage() {
@@ -19,6 +20,7 @@ export function DomainsPage() {
   const [focusPrice, setFocusPrice] = useState(false);
 
   const query = useDomains(controls.filters);
+  const setup = useSetupState();
   const rows = useMemo(() => query.data?.rows ?? [], [query.data]);
 
   /**
@@ -98,11 +100,19 @@ export function DomainsPage() {
           <ErrorState error={query.error} onRetry={() => query.refetch()} />
         ) : domains.length === 0 ? (
           <EmptyState
-            title={controls.activeCount > 0 ? 'No domains match these filters' : 'No domains yet'}
-            description={
-              controls.activeCount > 0
-                ? 'Try clearing a filter.'
-                : 'Run a sync to pull your portfolio from the registrar.'
+            // With a filter on, the filter is the explanation. Without one, the
+            // reason is a setup state — which registrar variable is unset, or
+            // that nothing has synced yet — and saying "run a sync" when a sync
+            // cannot start is how this page used to send people looking in the
+            // wrong place entirely.
+            title={controls.activeCount > 0 ? 'No domains match these filters' : setup.title}
+            description={controls.activeCount > 0 ? 'Try clearing a filter.' : setup.description}
+            action={
+              controls.activeCount === 0 && setup.syncBlocked ? (
+                <Button size="sm" variant="secondary" onClick={() => navigate('/settings')}>
+                  Open settings
+                </Button>
+              ) : undefined
             }
           />
         ) : (

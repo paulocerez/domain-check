@@ -93,3 +93,28 @@ export interface RegistrarCapabilities {
    */
   availability: boolean;
 }
+
+/**
+ * A registrar this build supports, and whether this *environment* has the
+ * credentials for it.
+ *
+ * Reported alongside the account list rather than derived from it, because the
+ * interesting case is when there is no account row at all: an empty list used
+ * to leave the UI with nothing to hang an explanation on, so it rendered
+ * silence. This says "IONOS_API_KEY is not set here" without a row existing.
+ */
+export interface ExpectedRegistrarDTO {
+  kind: RegistrarKind;
+  label: string;
+  /** Every env var that must be set for this registrar. GoDaddy needs two. */
+  requiredEnv: string[];
+  configured: boolean;
+  /** The subset of `requiredEnv` that is missing. Empty when configured. */
+  missingEnv: string[];
+}
+
+export interface RegistrarAccountsMeta {
+  expected: ExpectedRegistrarDTO[];
+  /** True when not one registrar's credentials are present in this environment. */
+  noCredentials: boolean;
+}

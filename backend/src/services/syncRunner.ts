@@ -3,6 +3,9 @@ import { desc, eq } from 'drizzle-orm';
 import type pg from 'pg';
 import type { Database } from '../db/client.js';
 import { registrarAccounts, syncRuns, type SyncRunRow } from '../db/schema.js';
+import { credentialAdvice, describeExpectedRegistrars, NoRegistrarConfiguredError } from '../db/provision.js';
+import { isMockMode } from '../env.js';
+import { isCredentialConfigured } from '../registrars/registry.js';
 import { acquireAdvisoryLock } from '../lib/advisoryLock.js';
 import { runInBackground } from '../lib/background.js';
 import { logger } from '../lib/logger.js';
@@ -33,11 +36,29 @@ export async function startSync(
   pool: pg.Pool,
   options: { accountId?: string; mode: SyncMode; trigger: SyncTrigger },
 ): Promise<StartSyncResult[]> {
-  const accounts = options.accountId
+  const candidates = options.accountId
     ? await db.select().from(registrarAccounts).where(eq(registrarAccounts.id, options.accountId))
     : await db.select().from(registrarAccounts).where(eq(registrarAccounts.isEnabled, true));
 
-  if (accounts.length === 0) throw new Error('No enabled registrar account to sync');
+  // Mock mode is checked first because `createRegistrar` ignores credentials
+  // entirely there — filtering strictly on `isCredentialConfigured` would break
+  // every fixture-mode sync.
+  const accounts = candidates.filter((account) => isMockMode || isCredentialConfigured(account));
+
+  // Two distinct failures with two distinct fixes, and neither is an internal
+  // error. Saying "No enabled registrar account to sync" through a generic 500
+  // is what made an unconfigured deployment look broken rather than unset.
+  if (accounts.length === 0) {
+    const missingEnv = describeExpectedRegistrars().flatMap((entry) => entry.missingEnv);
+    throw new NoRegistrarConfiguredError(
+      candidates.length === 0
+        ? `No registrar account is configured. ${credentialAdvice()}`
+        : `${candidates
+            .map((account) => account.label)
+            .join(', ')} exists, but its credentials are not set in this environment. ${credentialAdvice()}`,
+      missingEnv,
+    );
+  }
 
   const started: StartSyncResult[] = [];
 

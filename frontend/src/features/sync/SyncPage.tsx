@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { SyncRunDTO } from '@domain-check/shared';
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,6 +7,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Badge, Button, EmptyState, Panel, PanelHeader, Skeleton } from '@/components/ui/primitives';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useStartSync, useSyncRun, useSyncRuns, useSyncStatus } from '@/api/hooks';
+import { useSetupState } from '@/features/setup/useSetupState';
 import { formatDuration, formatRelative } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -20,9 +22,14 @@ export function SyncPage() {
   const runs = useSyncRuns(50);
   const status = useSyncStatus();
   const startSync = useStartSync();
+  const setup = useSetupState();
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const running = status.data?.running ?? false;
+  // Offering a button whose only possible outcome is an error toast is worse
+  // than offering none: it hides the fact that the problem is configuration.
+  const blocked = setup.syncBlocked;
 
   const trigger = (mode: 'full' | 'quick') =>
     startSync.mutate(mode, {
@@ -37,15 +44,28 @@ export function SyncPage() {
         subtitle={running ? 'a sync is running' : undefined}
         actions={
           <>
-            <Tooltip content="Lists the portfolio only — fast, but leaves per-domain detail (auto-renew, locks) untouched.">
-              <Button size="sm" disabled={running} onClick={() => trigger('quick')}>
+            <Tooltip
+              content={
+                blocked
+                  ? setup.description
+                  : 'Lists the portfolio only — fast, but leaves per-domain detail (auto-renew, locks) untouched.'
+              }
+            >
+              <Button size="sm" disabled={running || blocked} onClick={() => trigger('quick')}>
                 Quick
               </Button>
             </Tooltip>
-            <Button variant="primary" size="sm" disabled={running} onClick={() => trigger('full')}>
-              <RefreshCw className={cn('size-3.5', running && 'animate-spin')} />
-              {running ? 'Syncing…' : 'Sync now'}
-            </Button>
+            <Tooltip content={blocked ? setup.description : 'Lists the portfolio and refreshes every domain’s detail.'}>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={running || blocked}
+                onClick={() => trigger('full')}
+              >
+                <RefreshCw className={cn('size-3.5', running && 'animate-spin')} />
+                {running ? 'Syncing…' : 'Sync now'}
+              </Button>
+            </Tooltip>
           </>
         }
       />
@@ -55,12 +75,18 @@ export function SyncPage() {
           <Skeleton className="h-64 w-full" />
         ) : !runs.data || runs.data.length === 0 ? (
           <EmptyState
-            title="No syncs yet"
-            description="Run one to pull your portfolio from the registrar."
+            title={setup.title}
+            description={setup.description}
             action={
-              <Button size="sm" variant="primary" onClick={() => trigger('full')}>
-                Sync now
-              </Button>
+              blocked ? (
+                <Button size="sm" variant="secondary" onClick={() => navigate('/settings')}>
+                  Open settings
+                </Button>
+              ) : (
+                <Button size="sm" variant="primary" onClick={() => trigger('full')}>
+                  Sync now
+                </Button>
+              )
             }
           />
         ) : (

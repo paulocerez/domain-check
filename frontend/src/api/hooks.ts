@@ -16,6 +16,7 @@ import type {
   HealthDTO,
   ListMeta,
   RegistrarAccountDTO,
+  RegistrarAccountsMeta,
   RenewalCalendarEntryDTO,
   SummaryStatsDTO,
   SyncChangeDTO,
@@ -148,10 +149,20 @@ export function useTldPrices() {
   });
 }
 
+/**
+ * Returns the meta alongside the rows, because the interesting case is zero
+ * rows: `expected` is what lets the UI name the environment variable this
+ * deployment is missing when there is no account to describe.
+ */
 export function useRegistrarAccounts() {
   return useQuery({
     queryKey: queryKeys.accounts,
-    queryFn: async () => (await api.get<RegistrarAccountDTO[]>('/registrar-accounts')).data,
+    queryFn: async () => {
+      const { data, meta } = await api.get<RegistrarAccountDTO[], RegistrarAccountsMeta>(
+        '/registrar-accounts',
+      );
+      return { rows: data, expected: meta?.expected ?? [], noCredentials: meta?.noCredentials ?? false };
+    },
   });
 }
 

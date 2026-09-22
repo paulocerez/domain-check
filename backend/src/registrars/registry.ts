@@ -67,7 +67,12 @@ export function createRegistrar(account: RegistrarAccountRow): Registrar {
  * green tick next to a half-configured account sends the user looking for the
  * problem everywhere except where it is.
  */
-export function isCredentialConfigured(account: RegistrarAccountRow): boolean {
+export function isCredentialConfigured(
+  // A narrow structural type, not the whole row: `/api/health` counts readiness
+  // from a projection, and asking it to select columns it does not need just to
+  // satisfy a signature would be the wrong way round.
+  account: Pick<RegistrarAccountRow, 'kind' | 'credentialRef'>,
+): boolean {
   if (account.kind === 'mock') return true;
   const primary = Boolean(process.env[account.credentialRef]?.trim());
   if (account.kind === 'godaddy') {

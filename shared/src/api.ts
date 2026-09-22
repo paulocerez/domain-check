@@ -47,6 +47,18 @@ export interface HealthDTO {
   registrarMode: 'live' | 'mock';
   lastSyncAt: string | null;
   version: string;
+  /**
+   * Setup counters, so the UI can tell "nothing is configured" apart from
+   * "configured but never synced" apart from "synced and genuinely empty" —
+   * three states that all used to render the same blank page.
+   *
+   * Null when the database is unreachable, since they cannot be counted then.
+   */
+  registrarAccounts: number | null;
+  /** Accounts that are enabled *and* whose credentials are present. */
+  registrarAccountsReady: number | null;
+  /** Sync runs ever recorded. Zero means no sync has been attempted. */
+  syncRuns: number | null;
 }
 
 // --- stats -----------------------------------------------------------------

@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db/client.js';
-import { alertLog, domains, syncChanges, tldPrices, type RegistrarAccountRow } from '../db/schema.js';
+import { alertLog, domains, syncChanges, syncRuns, tldPrices, type RegistrarAccountRow } from '../db/schema.js';
 import { MockRegistrar } from '../registrars/mock/index.js';
 import { FIXTURE_SPECS } from '../registrars/mock/fixtures.js';
 import type { Registrar, RegistrarDomainSummary } from '../registrars/types.js';
@@ -191,6 +191,42 @@ describe('syncAccount', () => {
     // A quick sync simply omits detail-only columns from the SET clause.
     expect(after?.expirationDate?.toISOString()).toBe(before?.expirationDate?.toISOString());
     expect(after?.autoRenew).toBe(before?.autoRenew);
+  });
+
+  it('refuses to sweep the whole portfolio when the list comes back empty', async () => {
+    await sync();
+    const before = await db.select({ id: domains.id }).from(domains);
+    expect(before.length).toBeGreaterThan(0);
+
+    // A registrar answering 200 with nothing we recognise looks exactly like a
+    // clean run over an empty account — zero summaries, zero errors — and used
+    // to flag every domain 'missing' behind a green success badge.
+    registrarOverride = new MockRegistrar({ hiddenIds: new Set(FIXTURE_SPECS.map((spec) => spec.id)) });
+    const syncRunId = await createSyncRun(db, account, { mode: 'full', trigger: 'manual' });
+    const outcome = await runSync(db, account, { mode: 'full', trigger: 'manual' }, syncRunId);
+
+    expect(outcome.domainsSeen).toBe(0);
+    expect(outcome.domainsMissing).toBe(0);
+    expect(outcome.status).toBe('partial');
+
+    const states = await db.select({ state: domains.syncState }).from(domains);
+    expect(states).toHaveLength(before.length);
+    expect(states.every((row) => row.state === 'active')).toBe(true);
+
+    const [run] = await db.select().from(syncRuns).where(eq(syncRuns.id, syncRunId));
+    expect(run?.errorMessage).toContain('returned 0 domains');
+  });
+
+  it('treats an empty list over an empty portfolio as a clean success', async () => {
+    // Nothing tracked, nothing to lose: an account that genuinely holds no
+    // domains must not be reported as a problem every time it is synced.
+    registrarOverride = new MockRegistrar({ hiddenIds: new Set(FIXTURE_SPECS.map((spec) => spec.id)) });
+    const syncRunId = await createSyncRun(db, account, { mode: 'full', trigger: 'manual' });
+    const outcome = await runSync(db, account, { mode: 'full', trigger: 'manual' }, syncRunId);
+
+    expect(outcome.status).toBe('success');
+    const [run] = await db.select().from(syncRuns).where(eq(syncRuns.id, syncRunId));
+    expect(run?.errorMessage).toBeNull();
   });
 
   it('rejects a concurrent sync of the same account', async () => {

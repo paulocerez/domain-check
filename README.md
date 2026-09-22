@@ -44,7 +44,7 @@ cp .env.example .env      # defaults run against fixtures — no credentials nee
 npm install
 npm run db:up             # Postgres 16 in Docker on port 5433
 npm run db:migrate
-npm run db:seed           # settings row, ~20 indicative TLD prices, an IONOS account
+npm run db:seed           # settings row, ~20 indicative TLD prices
 npm run dev               # http://localhost:5173
 ```
 
@@ -134,7 +134,10 @@ silently: whether you are connecting as a superuser, and whether the server
 
 1. Create a key at <https://developer.hosting.ionos.com>. It has the shape
    `publicprefix.secret` and is sent verbatim as the `X-Api-Key` header.
-2. Put it in `.env` as `IONOS_API_KEY`, set `MOCK_REGISTRAR=0`, restart.
+2. Put it in `.env` as `IONOS_API_KEY`, set `MOCK_REGISTRAR=0`, restart. The
+   IONOS account row is created from the variable itself — see *Registrar
+   accounts are provisioned from the environment* below — so there is no
+   separate step to remember, on a laptop or on a deployment.
 3. **Settings → Verify.** This isolates an auth problem from a sync problem
    before you spend a minute of requests discovering it.
 4. Run a **Quick** sync first — one cheap pass that proves pagination and auth —
@@ -144,11 +147,47 @@ silently: whether you are connecting as a superuser, and whether the server
 
 1. Create a key pair at <https://developer.godaddy.com/keys>. GoDaddy issues a
    **key and a secret**, both secret, sent as `Authorization: sso-key <key>:<secret>`.
-2. Put them in `.env` as `GODADDY_API_KEY` and `GODADDY_API_SECRET`, then run
-   `npm run db:seed` again — the GoDaddy account row is only created once the
-   key is present, so an IONOS-only install is never nagged about an account it
-   does not have. Set `MOCK_REGISTRAR=0` and restart.
+2. Put them in `.env` as `GODADDY_API_KEY` and `GODADDY_API_SECRET`, set
+   `MOCK_REGISTRAR=0` and restart. The account row appears on the next request:
+   both halves are required, because a row created from the key alone would
+   report itself unconfigured forever.
 3. **Settings → Verify**, then Quick, then Full, exactly as above.
+
+### Registrar accounts are provisioned from the environment
+
+`registrar_accounts` rows are created from whichever credentials the process can
+see — on the first request after a boot, and again at startup on a long-lived
+server (`backend/src/db/provision.ts`). Setting `IONOS_API_KEY` and redeploying
+is the whole of the configuration.
+
+This is not a convenience. `npm run db:seed` is a laptop command, and a Vercel
+deployment has no laptop: the key would be set in the project's environment
+while the database held zero account rows, and with no row the app is not just
+empty but *silent* — an empty account list, a generic 500 from "Sync now", and a
+cron that answers `200 {"runs": []}` every morning having synced nothing.
+
+Two consequences worth knowing:
+
+- **A row is created only once its credentials are present**, and it is never
+  deleted or disabled when they go away — domains hang off it, and an absent
+  variable is a state to report, not a reason to drop data. So "no accounts" now
+  means exactly one thing: *no registrar credentials in this environment*, which
+  is what lets the UI name the variable you are missing instead of showing a
+  blank page.
+- **Only structural rows are provisioned.** The ~20 indicative TLD prices stay
+  with `npm run db:seed`: they are opinionated content, not your invoice, and
+  writing them into a production database as a side effect of a page load is a
+  surprise nobody asked for. Migrations stay manual too — instances racing
+  `drizzle migrate` is a worse hazard than the bug this fixes.
+
+If a page is empty, the page says why: which variable is unset, that no sync has
+run yet, that the last run failed (with its message), or that the registrar
+genuinely reported zero domains for that key. The last of those is also the one
+case where sync refuses to act on what it was told: a *successful* empty list
+while domains are tracked does not sweep the portfolio to `missing` — it
+downgrades the run to `partial` and says so, because a 200 in an unrecognised
+shape is indistinguishable from an empty account and the destructive reading
+must not be the default.
 
 Two things to know before you start:
 

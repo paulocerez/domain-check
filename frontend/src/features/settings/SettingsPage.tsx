@@ -268,7 +268,36 @@ function AccountsPanel() {
         <Skeleton className="m-4 h-16" />
       ) : (
         <div className="flex flex-col divide-y divide-border">
-          {accounts.data?.map((account) => (
+          {/*
+            An empty account list is the state this panel most needs to explain
+            and previously rendered as nothing at all: on a fresh deployment no
+            row exists until a credential does, so there was no badge to hang
+            the explanation on. `expected` describes what this build supports
+            and what this environment is short of, row or no row.
+          */}
+          {accounts.data?.rows.length === 0
+            ? accounts.data.expected.map((entry) => (
+                <div key={entry.kind} className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-medium text-primary">{entry.label}</span>
+                    <Badge variant="outline">{entry.kind}</Badge>
+                    <Badge variant="urgent">
+                      <ShieldX className="size-3" />
+                      {entry.missingEnv.join(' + ')} missing
+                    </Badge>
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-tertiary">
+                    No account exists for this registrar yet. It is created automatically as soon as{' '}
+                    {entry.missingEnv.join(' and ')}{' '}
+                    {entry.missingEnv.length > 1 ? 'are' : 'is'} set in this deployment&rsquo;s
+                    environment — on Vercel a new variable only reaches a new deployment, so redeploy
+                    after setting it.
+                  </p>
+                </div>
+              ))
+            : null}
+
+          {accounts.data?.rows.map((account) => (
             <div key={account.id} className="px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-[13px] font-medium text-primary">{account.label}</span>
@@ -279,7 +308,9 @@ function AccountsPanel() {
                     {account.credentialRef} set
                   </Badge>
                 ) : (
-                  <Tooltip content={`Set ${account.credentialRef} in your .env and restart the server.`}>
+                  <Tooltip
+                    content={`Set ${account.credentialRef} in this deployment's environment, then redeploy (or restart the server).`}
+                  >
                     <Badge variant="urgent">
                       <ShieldX className="size-3" />
                       {account.credentialRef} missing

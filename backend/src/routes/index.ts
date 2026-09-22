@@ -12,14 +12,22 @@ import {
   type HealthDTO,
   type ListMeta,
   type RegistrarAccountDTO,
+  type RegistrarAccountsMeta,
 } from '@domain-check/shared';
 import { Router } from 'express';
 import { desc, eq, sql } from 'drizzle-orm';
 import type pg from 'pg';
 import type { Database } from '../db/client.js';
 import { checkDbHealth } from '../db/client.js';
-import { domains, registrarAccounts, syncChanges } from '../db/schema.js';
+import { domains, registrarAccounts, syncChanges, syncRuns } from '../db/schema.js';
+import {
+  credentialAdvice,
+  describeExpectedRegistrars,
+  ensureRegistrarAccounts,
+  NoRegistrarConfiguredError,
+} from '../db/provision.js';
 import { env, isMockMode } from '../env.js';
+import { logger } from '../lib/logger.js';
 import { HttpError, notFound } from '../middleware/errorHandler.js';
 import { asyncHandler, parseBody, parseQuery } from '../middleware/validate.js';
 import { capabilitiesFor, createRegistrar, isCredentialConfigured } from '../registrars/registry.js';
@@ -71,21 +79,82 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
       // turn the one useful diagnostic into a 500 with a raw SQL error — and
       // make the caller wait through a second connection timeout to get it.
       let lastSyncAt: string | null = null;
+      let counters: Pick<HealthDTO, 'registrarAccounts' | 'registrarAccountsReady' | 'syncRuns'> = {
+        registrarAccounts: null,
+        registrarAccountsReady: null,
+        syncRuns: null,
+      };
+      let degraded = dbStatus !== 'up';
+
       if (dbStatus === 'up') {
-        const [account] = await db
-          .select({ lastSyncAt: sql<Date | null>`max(${registrarAccounts.lastSyncAt})` })
-          .from(registrarAccounts);
-        lastSyncAt = account?.lastSyncAt ? new Date(account.lastSyncAt).toISOString() : null;
+        try {
+          // One statement: the setup counters the UI needs to tell "nothing is
+          // configured" from "never synced" from "synced and empty", plus the
+          // timestamp. Credential presence cannot be asked of SQL, so the rows
+          // come back and are counted here.
+          const accounts = await db
+            .select({
+              kind: registrarAccounts.kind,
+              credentialRef: registrarAccounts.credentialRef,
+              isEnabled: registrarAccounts.isEnabled,
+              lastSyncAt: registrarAccounts.lastSyncAt,
+              runs: sql<number>`(select count(*)::int from ${syncRuns})`,
+            })
+            .from(registrarAccounts);
+
+          const latest = accounts
+            .map((row) => row.lastSyncAt)
+            .filter((value): value is Date => value !== null)
+            .sort((a, b) => b.getTime() - a.getTime())[0];
+          lastSyncAt = latest ? new Date(latest).toISOString() : null;
+
+          counters = {
+            registrarAccounts: accounts.length,
+            registrarAccountsReady: accounts.filter(
+              (row) => row.isEnabled && (isMockMode || isCredentialConfigured(row)),
+            ).length,
+            // The correlated subquery returns per row; with zero accounts there
+            // are no rows, and zero accounts also means zero runs (the FK makes
+            // a run without an account impossible).
+            syncRuns: accounts[0]?.runs ?? 0,
+          };
+        } catch (err) {
+          // This endpoint exists to be answerable when the database is not, so
+          // a missing table must degrade it rather than turn it into a 500 with
+          // a raw SQL error.
+          logger.warn({ err }, 'health counters unavailable — is the schema migrated?');
+          degraded = true;
+        }
       }
 
       const payload: HealthDTO = {
-        status: dbStatus === 'up' ? 'ok' : 'degraded',
+        status: degraded ? 'degraded' : 'ok',
         db: dbStatus,
         registrarMode: isMockMode ? 'mock' : 'live',
         lastSyncAt,
         version,
+        ...counters,
       };
       res.status(dbStatus === 'up' ? 200 : 503).json(ok(payload));
+    }),
+  );
+
+  /**
+   * Creates any registrar account row this environment's credentials call for.
+   *
+   * Registered *after* `/health` on purpose. Express matches in registration
+   * order, so the one endpoint that must answer while the database is broken
+   * can never be made to wait on a connection timeout by provisioning, nor be
+   * turned into a 500 by it. Do not reorder these two.
+   *
+   * `ensureRegistrarAccounts` is memoized per process and never rejects, so
+   * this costs one statement on the first request of a cold start and nothing
+   * afterwards.
+   */
+  router.use(
+    asyncHandler(async (_req, _res, next) => {
+      await ensureRegistrarAccounts(db);
+      next();
     }),
   );
 
@@ -277,7 +346,16 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
         domainCount: countByAccount.get(account.id) ?? 0,
         capabilities: capabilitiesFor(account.kind),
       }));
-      res.json(ok(payload));
+
+      // `expected` is what makes an empty list speakable. With no rows there is
+      // nothing to hang a "key missing" badge on, so the UI used to render
+      // silence; this says which variable this environment is short of.
+      const expected = describeExpectedRegistrars();
+      const meta: RegistrarAccountsMeta = {
+        expected,
+        noCredentials: !expected.some((entry) => entry.configured),
+      };
+      res.json(ok(payload, meta));
     }),
   );
 
@@ -357,8 +435,27 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
       }
 
       const accounts = await db.select().from(registrarAccounts).where(eq(registrarAccounts.isEnabled, true));
+
+      // Zero syncable accounts used to answer `200 {runs: []}` — a scheduled
+      // job that reported success every morning while doing nothing at all.
+      // The cron has no UI to read, so the log line and the status code are the
+      // only places this can be said.
+      const syncable = accounts.filter((account) => isMockMode || isCredentialConfigured(account));
+      if (syncable.length === 0) {
+        logger.error(
+          { accounts: accounts.length },
+          'scheduled sync has nothing to sync — no registrar account has usable credentials',
+        );
+        throw new NoRegistrarConfiguredError(
+          accounts.length === 0
+            ? `Scheduled sync did nothing: no registrar account is configured. ${credentialAdvice()}`
+            : `Scheduled sync did nothing: ${accounts.length} account(s) exist but none has credentials in this environment. ${credentialAdvice()}`,
+          describeExpectedRegistrars().flatMap((entry) => entry.missingEnv),
+        );
+      }
+
       const outcomes = [];
-      for (const account of accounts) {
+      for (const account of syncable) {
         try {
           // syncAccount takes the advisory lock, so a scheduled run can never
           // overlap a manual one already in flight.
@@ -376,7 +473,9 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
 
       const ctx = await context();
       const alerts = await runAlerts(db, ctx);
-      res.json(ok({ runs: outcomes, alerts }));
+      // `accountsConsidered` makes a run that skipped accounts readable: the
+      // run list alone cannot show what was left out.
+      res.json(ok({ runs: outcomes, accountsConsidered: accounts.length, alerts }));
     }),
   );
 

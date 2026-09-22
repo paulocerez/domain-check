@@ -38,6 +38,9 @@ export class IonosRegistrar implements Registrar {
   private readonly pageSize: number;
   private readonly maxPages: number;
   private readonly debug: boolean;
+  /** Kept for diagnostics only — neither is a secret. The key is never stored. */
+  private readonly tenantId: string | null;
+  private readonly baseUrl: string;
 
   constructor(options: IonosClientOptions) {
     if (!options.apiKey) {
@@ -47,6 +50,8 @@ export class IonosRegistrar implements Registrar {
     this.pageSize = options.pageSize ?? 100;
     this.maxPages = options.maxPages ?? 200;
     this.debug = options.debug ?? false;
+    this.tenantId = options.tenantId ?? null;
+    this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
 
     this.http = axios.create({
       baseURL: options.baseUrl ?? DEFAULT_BASE_URL,
@@ -141,6 +146,19 @@ export class IonosRegistrar implements Registrar {
           'listDomains hit the page cap — results may be incomplete',
         );
       }
+    }
+
+    if (collected.size === 0) {
+      // Not an error — an account may legitimately hold nothing — but it is the
+      // single most confusing answer this method can give, and by the time it
+      // reaches the UI it looks like an empty database. `expectedCount` is the
+      // tell: a non-zero count with nothing collected means the items came back
+      // in a shape the mapper did not recognise, not that the portfolio is
+      // empty. The sync refuses to sweep on this; see syncService.runSync.
+      logger.warn(
+        { expectedCount, tenantId: this.tenantId, baseUrl: this.baseUrl },
+        'IONOS returned no domains — check that the API key belongs to the right contract, and whether a tenant id is required',
+      );
     }
 
     return [...collected.values()];

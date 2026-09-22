@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { db, pool } from './client.js';
 import { appSettings, registrarAccounts, tldPrices } from './schema.js';
-import { env } from '../env.js';
+import { provisionRegistrarAccounts } from './provision.js';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -53,31 +53,10 @@ export async function seed() {
     // Never clobber a price the user has already set.
     .onConflictDoNothing({ target: tldPrices.tld });
 
-  await db
-    .insert(registrarAccounts)
-    .values({
-      kind: 'ionos',
-      label: 'IONOS',
-      credentialRef: 'IONOS_API_KEY',
-      tenantId: env.IONOS_TENANT_ID ?? null,
-    })
-    .onConflictDoNothing({ target: [registrarAccounts.kind, registrarAccounts.label] });
-
-  // Only seeded once a key exists. An unconditional row would leave every
-  // IONOS-only install staring at a permanently unconfigured account it never
-  // asked for, and would make `/api/registrar-accounts` report a warning state
-  // that is not actually a problem.
-  if (env.GODADDY_API_KEY) {
-    await db
-      .insert(registrarAccounts)
-      .values({
-        kind: 'godaddy',
-        label: 'GoDaddy',
-        credentialRef: 'GODADDY_API_KEY',
-        tenantId: env.GODADDY_SHOPPER_ID ?? null,
-      })
-      .onConflictDoNothing({ target: [registrarAccounts.kind, registrarAccounts.label] });
-  }
+  // Account rows are provisioned from whichever credentials the environment
+  // actually holds — the same code path the running app uses, so a seeded
+  // install and a fresh deployment can never disagree about what should exist.
+  await provisionRegistrarAccounts(db);
 
   const counts = await db
     .select({

@@ -16,6 +16,7 @@ import { ShortcutsDialog } from '@/components/ShortcutsDialog';
 import { Badge, Button, Kbd } from '@/components/ui/primitives';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useHealth, useStartSync, useSyncStatus } from '@/api/hooks';
+import { useSetupState } from '@/features/setup/useSetupState';
 import { useHotkeys } from '@/lib/keyboard';
 import { formatRelative } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -38,6 +39,7 @@ export function AppShell() {
   const health = useHealth();
   const syncStatus = useSyncStatus();
   const startSync = useStartSync();
+  const setup = useSetupState();
 
   const running = syncStatus.data?.running ?? false;
 
@@ -105,16 +107,18 @@ export function AppShell() {
         </nav>
 
         <div className="mt-auto border-t border-border p-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="w-full"
-            disabled={running || startSync.isPending}
-            onClick={() => triggerSync('full')}
-          >
-            <RefreshCw className={cn('size-3.5', running && 'animate-spin')} />
-            {running ? 'Syncing…' : 'Sync now'}
-          </Button>
+          <Tooltip content={setup.syncBlocked ? setup.description : 'Sync every registrar now'} side="top">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              disabled={running || startSync.isPending || setup.syncBlocked}
+              onClick={() => triggerSync('full')}
+            >
+              <RefreshCw className={cn('size-3.5', running && 'animate-spin')} />
+              {running ? 'Syncing…' : 'Sync now'}
+            </Button>
+          </Tooltip>
 
           <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-disabled">
             <Calendar className="size-3" />
@@ -136,6 +140,17 @@ export function AppShell() {
             <div className="mt-2">
               <Badge variant="urgent">Database down</Badge>
             </div>
+          ) : null}
+
+          {setup.syncBlocked ? (
+            // The one badge that has to be visible from every page: with no
+            // usable credentials nothing in the app can work, and the previous
+            // symptom was a set of pages that merely looked empty.
+            <Tooltip content={setup.description} side="top">
+              <NavLink to="/settings" className="mt-2 block">
+                <Badge variant="urgent">Not configured</Badge>
+              </NavLink>
+            </Tooltip>
           ) : null}
         </div>
       </aside>

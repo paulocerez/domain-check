@@ -2,6 +2,7 @@ import type { ApiErr, ApiErrorCode } from '@domain-check/shared';
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../lib/logger.js';
+import { NoRegistrarConfiguredError } from '../db/provision.js';
 import { RegistrarError } from '../registrars/types.js';
 import { SyncInProgressError } from '../services/syncService.js';
 
@@ -40,6 +41,14 @@ function translate(err: unknown): { status: number; body: ApiErr } {
 
   if (err instanceof SyncInProgressError) {
     return fail(409, 'SYNC_IN_PROGRESS', err.message);
+  }
+
+  if (err instanceof NoRegistrarConfiguredError) {
+    // Reuses REGISTRAR_AUTH, which already means "a credential or configuration
+    // problem that is yours to fix" — the same code `RegistrarError` kind
+    // 'config' maps to below. `details` carries the variable names so the UI can
+    // name them without parsing the sentence.
+    return fail(400, 'REGISTRAR_AUTH', err.message, { missingEnv: err.missingEnv });
   }
 
   if (err instanceof RegistrarError) {

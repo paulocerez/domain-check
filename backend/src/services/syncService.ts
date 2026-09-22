@@ -150,15 +150,37 @@ export async function runSync(
     // A run that hit any API error saw an incomplete portfolio, so it must not
     // conclude that anything is gone. Disappearance is far more often a
     // transient upstream fault than an actual deletion.
-    const status: SyncStatus = counts.apiErrors > 0 ? 'partial' : 'success';
+    let status: SyncStatus = counts.apiErrors > 0 ? 'partial' : 'success';
+    let warning: string | null = null;
+
+    // The same reasoning, one step further: a *successful* empty list is the
+    // most dangerous answer there is. A 200 whose envelope we do not recognise
+    // yields zero summaries and zero errors, so the run reads clean and the
+    // sweep below flags the entire portfolio 'missing' — the UI empties out
+    // while the run badge stays green. An account that genuinely holds nothing
+    // is indistinguishable at this level, so the tie-break is whether we were
+    // tracking anything a moment ago.
+    if (status === 'success' && counts.domainsSeen === 0) {
+      const tracked = await countActiveDomains(db, account.id);
+      if (tracked > 0) {
+        // 'partial' reuses the existing skip-the-sweep branch rather than
+        // faking an apiError, which would misreport the run's error count.
+        status = 'partial';
+        warning =
+          `The registrar returned 0 domains while ${tracked} were tracked. Nothing was marked ` +
+          `missing — verify the API key's contract, and whether a tenant id is required.`;
+        log.error({ tracked }, 'refusing to sweep: registrar returned an empty portfolio');
+      }
+    }
+
     if (status === 'success') {
       counts.domainsMissing = await sweepMissing(db, account.id, syncRunId);
       await reviveReappeared(db, account.id, syncRunId);
-    } else {
+    } else if (warning === null) {
       log.warn({ apiErrors: counts.apiErrors }, 'partial sync — skipping missing-domain sweep');
     }
 
-    await finishRun(db, account, syncRunId, status, startedAt, counts, null);
+    await finishRun(db, account, syncRunId, status, startedAt, counts, warning ? { message: warning } : null);
     log.info({ ...counts, status }, 'sync finished');
     return { syncRunId, status, ...counts };
   } catch (err) {
@@ -389,6 +411,20 @@ function serializeValue(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.toISOString();
   return String(value);
+}
+
+/**
+ * How many domains this account is currently tracking as active.
+ *
+ * Only asked when a run saw nothing, to tell "this account is empty" apart
+ * from "the list call answered with nothing useful".
+ */
+async function countActiveDomains(db: Database, accountId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(domains)
+    .where(and(eq(domains.registrarAccountId, accountId), eq(domains.syncState, 'active')));
+  return row?.count ?? 0;
 }
 
 /** Flags active domains this run did not observe. Only ever called for clean runs. */

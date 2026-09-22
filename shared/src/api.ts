@@ -5,6 +5,16 @@ export type ApiErrorCode =
   | 'REGISTRAR_AUTH'
   | 'REGISTRAR_UNAVAILABLE'
   | 'SYNC_IN_PROGRESS'
+  /**
+   * The database is reachable but not usable as deployed: unmigrated,
+   * read-only, or missing a grant. Kept apart from DB_UNAVAILABLE because
+   * retrying can never fix it — something has to be configured. Both used to
+   * arrive as INTERNAL, which is how a misconfigured deployment came to look
+   * like an application bug.
+   */
+  | 'DB_NOT_READY'
+  /** The database is momentarily unreachable or out of connections. */
+  | 'DB_UNAVAILABLE'
   | 'INTERNAL';
 
 export interface ListMeta {

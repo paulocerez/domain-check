@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { databaseUrl, isServerless } from '../env.js';
+import { findDbFailure } from '../lib/dbError.js';
 import { logger } from '../lib/logger.js';
 import * as schema from './schema.js';
 
@@ -49,7 +50,9 @@ export async function checkDbHealth(): Promise<'up' | 'down'> {
     await pool.query('SELECT 1');
     return 'up';
   } catch (err) {
-    logger.error({ err }, 'database health check failed');
+    // The structured failure is what distinguishes "refused", "authentication
+    // failed" and "no such database" — all of which reduce to 'down' here.
+    logger.error({ err, db: findDbFailure(err) ?? undefined }, 'database health check failed');
     return 'down';
   }
 }

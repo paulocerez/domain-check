@@ -1,6 +1,7 @@
 import net from 'node:net';
 import pg from 'pg';
 import { createPool } from './client.js';
+import { explainDbFailure, findDbFailure } from '../lib/dbError.js';
 import { databaseUrl, env } from '../env.js';
 
 /**
@@ -218,17 +219,7 @@ async function main() {
       }
     }
 
-    const tables = await pool.query<{ n: string }>(
-      `select count(*)::text as n from information_schema.tables
-       where table_schema = 'public'
-         and table_name in ('domains','tld_prices','app_settings','sync_runs','sync_changes','alert_log','registrar_accounts')`,
-    );
-    const applied = Number(tables.rows[0]!.n);
-    record(
-      applied === 7 ? 'pass' : 'warn',
-      'Schema',
-      applied === 7 ? 'All 7 tables present.' : `${applied}/7 tables — run \`npm run db:migrate\`.`,
-    );
+    await checkSchema(pool);
 
     if (env.TEST_DATABASE_URL) {
       const test = describe(env.TEST_DATABASE_URL);
@@ -268,13 +259,124 @@ async function main() {
           '    cannot detect an active machine-in-the-middle. Better than sslmode=disable.',
       );
     } else {
-      record('fail', 'Could not query the database', message);
+      // A SQLSTATE means the server answered and refused; saying only "could not
+      // query the database" is what makes a missing GRANT look like an outage.
+      const failure = findDbFailure(err);
+      record(
+        'fail',
+        'Could not query the database',
+        failure ? `${failure.message} (SQLSTATE ${failure.code})\n    ${explainDbFailure(failure) ?? ''}`.trimEnd() : message,
+      );
     }
   } finally {
     await pool.end();
   }
 
   summarize();
+}
+
+const EXPECTED_TABLES = [
+  'domains',
+  'tld_prices',
+  'app_settings',
+  'sync_runs',
+  'sync_changes',
+  'alert_log',
+  'registrar_accounts',
+] as const;
+
+interface TableProbe {
+  name: string;
+  present: boolean;
+  can_select: boolean | null;
+  can_insert: boolean | null;
+  can_update: boolean | null;
+}
+
+/**
+ * Whether the schema is there, and — separately — whether this role may write to
+ * it.
+ *
+ * These used to be one count over `information_schema.tables`, which only lists
+ * relations the current role holds *some* privilege on. A table that exists but
+ * is unreadable and a table that does not exist at all came out identical, and
+ * the advice for both was "run db:migrate". That ambiguity is how a deployment
+ * spent its time answering 500s with a query dump: the app could not write, and
+ * the one tool built to say so could not tell the difference either.
+ *
+ * `to_regclass` needs no privilege on the relation, so it is the authoritative
+ * "does it exist". `has_table_privilege` raises 42P01 on a missing relation, so
+ * it must be guarded by that answer or it aborts the whole run.
+ */
+async function checkSchema(pool: pg.Pool): Promise<void> {
+  const usable = await pool.query<{ ok: boolean }>(
+    `select has_schema_privilege(current_user, 'public', 'USAGE') as ok`,
+  );
+  if (!usable.rows[0]?.ok) {
+    record(
+      'fail',
+      'No USAGE on schema public',
+      'Every table lookup fails before it starts, which makes this look like an empty database.\n' +
+        '      GRANT USAGE ON SCHEMA public TO <role>;',
+    );
+    return;
+  }
+
+  const probe = await pool.query<TableProbe>(
+    `select t.name,
+            to_regclass('public.' || quote_ident(t.name)) is not null as present,
+            case when to_regclass('public.' || quote_ident(t.name)) is not null
+                 then has_table_privilege(current_user, 'public.' || quote_ident(t.name), 'SELECT') end as can_select,
+            case when to_regclass('public.' || quote_ident(t.name)) is not null
+                 then has_table_privilege(current_user, 'public.' || quote_ident(t.name), 'INSERT') end as can_insert,
+            case when to_regclass('public.' || quote_ident(t.name)) is not null
+                 then has_table_privilege(current_user, 'public.' || quote_ident(t.name), 'UPDATE') end as can_update
+     from unnest($1::text[]) as t(name)`,
+    [[...EXPECTED_TABLES]],
+  );
+
+  const missing = probe.rows.filter((row) => !row.present).map((row) => row.name);
+  record(
+    missing.length === 0 ? 'pass' : 'warn',
+    'Schema',
+    missing.length === 0
+      ? `All ${EXPECTED_TABLES.length} tables present.`
+      : `Missing ${missing.length} of ${EXPECTED_TABLES.length}: ${missing.join(', ')} — run \`npm run db:migrate\`.`,
+  );
+
+  // Read-only before per-table grants: on a managed Postgres the commonest way
+  // to lose every write is a connection string pointing at a read replica, and
+  // in that state the grants are all perfectly correct.
+  const readOnly = await pool.query<{ ro: string; recovery: boolean }>(
+    `select current_setting('transaction_read_only') as ro, pg_is_in_recovery() as recovery`,
+  );
+  if (readOnly.rows[0]?.ro === 'on' || readOnly.rows[0]?.recovery) {
+    record(
+      'fail',
+      'Connection is READ-ONLY',
+      'Reads work and every write fails with SQLSTATE 25006 — an empty app that 500s on sync.\n' +
+        '    DATABASE_URL points at a read replica or standby. Use the primary endpoint.\n' +
+        '    Note that DATABASE_URL_UNPOOLED takes precedence when it is set.',
+    );
+    return;
+  }
+
+  const unwritable = probe.rows.filter((row) => row.present && !(row.can_insert && row.can_update));
+  const unreadable = probe.rows.filter((row) => row.present && !row.can_select);
+  if (unwritable.length === 0 && unreadable.length === 0) {
+    record('pass', 'Table privileges', 'The role can read and write every table.');
+  } else {
+    const named = [...new Set([...unreadable, ...unwritable].map((row) => row.name))].join(', ');
+    record(
+      'fail',
+      'Missing table privileges',
+      `The role cannot read/write: ${named}.\n` +
+        '      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO <role>;\n' +
+        '      GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO <role>;\n' +
+        '    The sequence grant is not optional: sync_changes.id and alert_log.id are bigserial,\n' +
+        '    so an insert fails on the sequence even when the table grant is right.',
+    );
+  }
 }
 
 function summarize() {

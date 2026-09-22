@@ -15,6 +15,7 @@ import {
 } from '../db/schema.js';
 import { registrarConcurrency } from '../env.js';
 import { withAdvisoryLock } from '../lib/advisoryLock.js';
+import { explainDbFailure, findDbFailure, stripQueryParams } from '../lib/dbError.js';
 import { logger } from '../lib/logger.js';
 import { createRegistrar } from '../registrars/registry.js';
 import type { Registrar, RegistrarDomainDetail, RegistrarDomainSummary } from '../registrars/types.js';
@@ -184,9 +185,22 @@ export async function runSync(
     log.info({ ...counts, status }, 'sync finished');
     return { syncRunId, status, ...counts };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const detail =
-      err instanceof RegistrarError
+    // `error_message` and `error_detail` are rendered in the sync-history UI, so
+    // neither may carry Drizzle's `params:` dump (bound values) nor Postgres'
+    // `detail` (which quotes the offending row). What a reader needs is the
+    // SQLSTATE and the constraint, which is what a database failure contributes
+    // here instead.
+    const dbFailure = findDbFailure(err);
+    const message = dbFailure
+      ? (explainDbFailure(dbFailure) ?? stripQueryParams(dbFailure.message))
+      : stripQueryParams(err instanceof Error ? err.message : String(err));
+    const detail = dbFailure
+      ? {
+          sqlstate: dbFailure.code,
+          ...(dbFailure.table ? { table: dbFailure.table } : {}),
+          ...(dbFailure.constraint ? { constraint: dbFailure.constraint } : {}),
+        }
+      : err instanceof RegistrarError
         ? { kind: err.kind, httpStatus: err.httpStatus, registrarCode: err.registrarCode }
         : undefined;
     await finishRun(db, account, syncRunId, 'failed', startedAt, counts, { message, detail });

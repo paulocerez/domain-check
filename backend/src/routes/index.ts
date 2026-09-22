@@ -27,6 +27,7 @@ import {
   NoRegistrarConfiguredError,
 } from '../db/provision.js';
 import { env, isMockMode } from '../env.js';
+import { explainDbFailure, findDbFailure } from '../lib/dbError.js';
 import { logger } from '../lib/logger.js';
 import { HttpError, notFound } from '../middleware/errorHandler.js';
 import { asyncHandler, parseBody, parseQuery } from '../middleware/validate.js';
@@ -122,7 +123,13 @@ export function createRoutes(db: Database, pool: pg.Pool, version: string): Rout
           // This endpoint exists to be answerable when the database is not, so
           // a missing table must degrade it rather than turn it into a 500 with
           // a raw SQL error.
-          logger.warn({ err }, 'health counters unavailable — is the schema migrated?');
+          const failure = findDbFailure(err);
+          logger.warn(
+            { err, db: failure ?? undefined },
+            failure
+              ? `health counters unavailable: ${explainDbFailure(failure) ?? failure.message}`
+              : 'health counters unavailable — is the schema migrated?',
+          );
           degraded = true;
         }
       }

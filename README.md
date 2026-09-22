@@ -115,6 +115,13 @@ scanners find within hours.
    ```sql
    CREATE ROLE domaincheck LOGIN PASSWORD '<long random>';
    GRANT ALL ON DATABASE domain_check_db TO domaincheck;
+   -- Only if the migrations were applied as some *other* role. `GRANT ALL ON
+   -- DATABASE` grants CONNECT/CREATE/TEMP and no table privilege whatsoever,
+   -- so without these the app reads and writes nothing while the connection
+   -- itself looks perfectly healthy.
+   GRANT USAGE ON SCHEMA public TO domaincheck;
+   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO domaincheck;
+   GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO domaincheck;
    ```
    Then in `pg_hba.conf` allow only that role over TLS, and **delete the plain
    `host` lines for remote addresses** — a `hostssl` line does nothing while a
@@ -126,9 +133,12 @@ scanners find within hours.
 4. **Point the app at the hostname, not the IP** — verification matches the
    name — and use `sslmode=require`.
 
-`npm run db:check` asserts all of it, including the two that otherwise pass
-silently: whether you are connecting as a superuser, and whether the server
-*still* accepts unencrypted connections despite TLS working.
+`npm run db:check` asserts all of it, including the three that otherwise pass
+silently: whether you are connecting as a superuser, whether the server *still*
+accepts unencrypted connections despite TLS working, and whether this role can
+actually **write** — a read-only connection string or a missing GRANT lets every
+read succeed and fails only on the first insert, which is a page that loads
+empty and a "Sync now" that 500s.
 
 ### Going live against IONOS
 
@@ -402,6 +412,15 @@ you change a filter.
 
 Every response is `{ok: true, data, meta?}` or
 `{ok: false, error: {code, message, details?}}`.
+
+Database failures get their own error codes rather than a generic `INTERNAL`,
+because the distinction is the whole diagnosis: **`DB_NOT_READY`** (503) means
+this deployment has to be *changed* — the schema is not migrated, the connection
+is read-only, or a GRANT is missing — and retrying will never help, while
+**`DB_UNAVAILABLE`** (503) means retrying is exactly the right response. The
+message names the remedy and `details.sqlstate` carries the Postgres code.
+Neither the bound query parameters nor Postgres' `detail` (which quotes the
+offending row) ever reach the client; both are in the log instead.
 
 | | |
 | --- | --- |

@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { registrarAccounts } from './schema.js';
 import { isMockMode } from '../env.js';
+import { explainDbFailure, findDbFailure } from '../lib/dbError.js';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -194,11 +195,19 @@ export async function ensureRegistrarAccounts(
     // Drop the cache so the next request past the cooldown tries again.
     inFlight = null;
     lastFailureAt = Date.now();
-    const code = (err as { code?: string }).code;
+    // Through `findDbFailure`, not `err.code`: Drizzle wraps the driver error,
+    // so reading the code off the top-level error found `undefined` and this
+    // hint never once fired.
+    //
+    // This is the first write of every cold start, and it is swallowed by
+    // design — which means it is also the earliest warning that the database
+    // cannot be written to at all. It has to name the reason, or the next
+    // symptom is a 500 from "Sync now" with a query dump for a message.
+    const failure = findDbFailure(err);
     logger.warn(
-      { err, code },
-      code === '42P01'
-        ? 'cannot provision registrar accounts: registrar_accounts does not exist — run `npm run db:migrate`'
+      { err, db: failure ?? undefined },
+      failure
+        ? `could not provision registrar accounts: ${explainDbFailure(failure) ?? failure.message}`
         : 'could not provision registrar accounts',
     );
     return null;

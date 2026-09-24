@@ -42,9 +42,10 @@ export function DashboardPage() {
         subtitle={stats ? `synced ${formatRelative(stats.lastSyncAt)}` : undefined}
       />
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-5">
         {!stats ? (
-          <div className="grid grid-cols-6 gap-3">
+          // Must track the real grid below, or the page reflows on load.
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-[88px]" />
             ))}

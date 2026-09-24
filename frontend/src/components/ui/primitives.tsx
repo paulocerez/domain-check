@@ -9,6 +9,10 @@ import { cn } from '@/lib/utils';
  * Deliberately small and hand-written rather than the full shadcn surface: this
  * app needs about eight primitives, and every one of them is tuned for density
  * (28–32px controls, 12–13px type) in a way the defaults are not.
+ *
+ * That density is a desktop affordance, so every control here is written as a
+ * touch-sized mobile value plus an `md:` restore. Desktop renders exactly as it
+ * did before; phones get ~40px targets.
  */
 
 // --- Button -----------------------------------------------------------------
@@ -24,9 +28,9 @@ const buttonVariants = cva(
         danger: 'bg-urgent/10 text-urgent border border-urgent/25 hover:bg-urgent/20',
       },
       size: {
-        sm: 'h-7 px-2.5 text-xs',
-        md: 'h-8 px-3 text-[13px]',
-        icon: 'h-7 w-7',
+        sm: 'h-9 px-3 text-xs md:h-7 md:px-2.5',
+        md: 'h-10 px-3.5 text-[13px] md:h-8 md:px-3',
+        icon: 'h-9 w-9 md:h-7 md:w-7',
       },
     },
     defaultVariants: { variant: 'secondary', size: 'md' },
@@ -54,7 +58,9 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       className={cn(
-        'h-8 w-full rounded-md border border-border bg-surface px-2.5 text-[13px] text-primary',
+        // `text-base` on mobile is not a style choice: iOS Safari zooms the
+        // whole viewport when a focused input's font is under 16px.
+        'h-10 w-full rounded-md border border-border bg-surface px-2.5 text-base text-primary md:h-8 md:text-[13px]',
         'placeholder:text-disabled focus-visible:border-accent/50 disabled:opacity-50',
         className,
       )}
@@ -71,7 +77,7 @@ export const Textarea = React.forwardRef<
   <textarea
     ref={ref}
     className={cn(
-      'w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[13px] text-primary',
+      'w-full rounded-md border border-border bg-surface px-2.5 py-2 text-base text-primary md:text-[13px]',
       'placeholder:text-disabled focus-visible:border-accent/50 resize-y',
       className,
     )}
@@ -143,6 +149,61 @@ export function PanelHeader({
   );
 }
 
+// --- Segmented --------------------------------------------------------------
+
+/**
+ * A single-choice control rendered as one connected row of buttons.
+ *
+ * Shared rather than local because the domains toolbar and the mobile sort bar
+ * both need it, and they must look identical — the sort bar is the only way to
+ * sort once the table's column headers are gone on a phone.
+ *
+ * `label` is a ReactNode so a caller can hang a direction arrow off the active
+ * option.
+ */
+export function Segmented({
+  value,
+  options,
+  onChange,
+  label,
+  emptyLabel,
+  className,
+}: {
+  value: string;
+  options: readonly { value: string; label: React.ReactNode }[];
+  onChange: (value: string) => void;
+  label: string;
+  emptyLabel?: string;
+  className?: string;
+}) {
+  const all = emptyLabel ? [{ value: '', label: emptyLabel }, ...options] : options;
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className={cn(
+        'flex h-11 items-center gap-px rounded-md border border-border bg-surface p-0.5 md:h-8',
+        className,
+      )}
+    >
+      {all.map((option) => (
+        <button
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            'flex h-9 items-center justify-center gap-1 rounded px-2 text-xs transition-colors md:h-[26px]',
+            value === option.value
+              ? 'bg-accent-muted font-medium text-accent'
+              : 'text-tertiary hover:text-primary',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // --- Misc -------------------------------------------------------------------
 
 export function Kbd({ children }: { children: React.ReactNode }) {
@@ -178,7 +239,11 @@ export function Switch({
       aria-checked={checked}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
+        // The 16×28 track is too small to hit on a phone, but growing it would
+        // change the look everywhere; an invisible inset pad grows only the
+        // target.
         'relative h-4 w-7 shrink-0 rounded-full border transition-colors',
+        "after:absolute after:-inset-2 after:content-[''] md:after:inset-0",
         checked ? 'border-accent bg-accent' : 'border-border bg-muted',
       )}
     >

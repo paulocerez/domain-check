@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import type { DomainDTO } from '@domain-check/shared';
-import { Badge, Button, Input, Kbd } from '@/components/ui/primitives';
+import { Badge, Button, Input, Kbd, Segmented } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
 import type { useDomainFilters } from './useDomainFilters';
 
@@ -29,9 +29,9 @@ export const DomainsToolbar = forwardRef<
   const selectedTags = params.getAll('tag');
 
   return (
-    <div className="flex shrink-0 flex-col gap-2 border-b border-border px-5 py-2.5">
+    <div className="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2.5 md:px-5">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1 max-w-sm">
+        <div className="relative min-w-0 basis-full flex-1 max-w-sm md:min-w-[220px] md:basis-auto">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-disabled" />
           <Input
             ref={ref}
@@ -86,7 +86,7 @@ export const DomainsToolbar = forwardRef<
           Favourites
         </Toggle>
 
-        <div className="ml-auto flex items-center gap-2 text-[11px] text-disabled">
+        <div className="ml-auto flex w-full items-center justify-end gap-2 text-[11px] text-disabled md:w-auto">
           <SlidersHorizontal className="size-3" />
           <span className="tabular">
             {domains.length === total ? `${total} domains` : `${domains.length} of ${total}`}
@@ -101,15 +101,27 @@ export const DomainsToolbar = forwardRef<
       </div>
 
       {tlds.length > 1 || tags.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1">
+        // A portfolio with 17 TLDs wraps to three rows, which on a phone pushes
+        // the first domain off the bottom of the screen. One scrolling row
+        // instead: the chips stay reachable without owning the viewport.
+        <div className="-mx-3 flex snap-x items-center gap-1 overflow-x-auto px-3 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
+          {/* The vertical padding is the tap target — the badge itself is 18px. */}
           {tlds.map((tld) => (
-            <button key={tld} onClick={() => toggleInList('tld', tld)}>
+            <button
+              key={tld}
+              onClick={() => toggleInList('tld', tld)}
+              className="shrink-0 snap-start py-1.5 md:py-0"
+            >
               <Badge variant={selectedTlds.includes(tld) ? 'accent' : 'outline'}>.{tld}</Badge>
             </button>
           ))}
-          {tags.length > 0 ? <span className="mx-1 h-3 w-px bg-border" /> : null}
+          {tags.length > 0 ? <span className="mx-1 h-3 w-px shrink-0 bg-border" /> : null}
           {tags.map((tag) => (
-            <button key={tag} onClick={() => toggleInList('tag', tag)}>
+            <button
+              key={tag}
+              onClick={() => toggleInList('tag', tag)}
+              className="shrink-0 snap-start py-1.5 md:py-0"
+            >
               <Badge variant={selectedTags.includes(tag) ? 'accent' : 'outline'}>#{tag}</Badge>
             </button>
           ))}
@@ -118,44 +130,6 @@ export const DomainsToolbar = forwardRef<
     </div>
   );
 });
-
-function Segmented({
-  value,
-  options,
-  onChange,
-  label,
-  emptyLabel,
-}: {
-  value: string;
-  options: readonly { value: string; label: string }[];
-  onChange: (value: string) => void;
-  label: string;
-  emptyLabel?: string;
-}) {
-  const all = emptyLabel ? [{ value: '', label: emptyLabel }, ...options] : options;
-  return (
-    <div
-      role="group"
-      aria-label={label}
-      className="flex h-8 items-center gap-px rounded-md border border-border bg-surface p-0.5"
-    >
-      {all.map((option) => (
-        <button
-          key={option.value}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            'h-[26px] rounded px-2 text-xs transition-colors',
-            value === option.value
-              ? 'bg-accent-muted font-medium text-accent'
-              : 'text-tertiary hover:text-primary',
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function Toggle({
   active,
@@ -170,7 +144,7 @@ function Toggle({
     <button
       onClick={onClick}
       className={cn(
-        'h-8 rounded-md border px-2.5 text-xs transition-colors',
+        'h-9 rounded-md border px-2.5 text-xs transition-colors md:h-8',
         active
           ? 'border-accent/40 bg-accent-muted font-medium text-accent'
           : 'border-border bg-surface text-tertiary hover:text-primary',

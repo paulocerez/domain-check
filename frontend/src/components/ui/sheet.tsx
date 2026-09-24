@@ -3,7 +3,12 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/** Right-hand drawer used for domain detail. Escape and overlay clicks close it. */
+/**
+ * Edge drawer. Escape and overlay clicks close it.
+ *
+ * Defaults to the right edge (domain detail); `side="left"` is the mobile
+ * navigation drawer, which needs the mirrored border and slide direction.
+ */
 
 export const Sheet = DialogPrimitive.Root;
 export const SheetTrigger = DialogPrimitive.Trigger;
@@ -11,15 +16,21 @@ export const SheetClose = DialogPrimitive.Close;
 
 export const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { title: string }
->(({ className, children, title, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    title: string;
+    side?: 'left' | 'right';
+  }
+>(({ className, children, title, side = 'right', ...props }, ref) => (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in" />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col border-l border-border bg-background shadow-2xl',
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+        'fixed inset-y-0 z-50 flex w-full max-w-[520px] flex-col border-border bg-background shadow-2xl',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out',
+        side === 'right'
+          ? 'right-0 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right'
+          : 'left-0 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
         className,
       )}
       {...props}
@@ -50,7 +61,8 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2 rounded-lg border border-border bg-surface shadow-2xl',
+        'fixed left-1/2 top-[10%] z-50 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 rounded-lg border border-border bg-surface shadow-2xl',
+        'max-h-[85dvh] overflow-y-auto md:top-[20%]',
         'data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95',
         className,
       )}

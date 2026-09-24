@@ -63,7 +63,7 @@ export function AvailabilityPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-5">
         {support.isLoading ? (
           <Skeleton className="h-32 w-full" />
         ) : support.data?.supported === false ? (
@@ -93,7 +93,7 @@ export function AvailabilityPage() {
                 aria-label="Domain names to check"
               />
 
-              <div className="mt-2.5 flex items-center justify-between gap-3">
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-[11px] text-disabled">
                   {names.length === 0
                     ? 'Separate names with spaces, commas or newlines'
@@ -156,13 +156,20 @@ function ResultsTable({ results }: { results: DomainAvailabilityDTO[] }) {
 function ResultRow({ result }: { result: DomainAvailabilityDTO }) {
   return (
     <tr className="border-b border-border last:border-0">
-      <td className="px-3 py-2 font-mono text-secondary">{result.name}</td>
+      <td className="px-3 py-2 font-mono text-secondary">
+        {result.name}
+        {/* Four columns need ~300px of fixed width, so the note moves under the
+            name on a phone rather than being dropped. */}
+        <span className="mt-0.5 block font-sans empty:hidden sm:hidden">
+          <Note result={result} />
+        </span>
+      </td>
 
-      <td className="w-32 px-3 py-2">
+      <td className="w-24 px-3 py-2 sm:w-32">
         <StatusBadge result={result} />
       </td>
 
-      <td className="w-28 px-3 py-2 text-right tabular-nums text-secondary">
+      <td className="w-24 px-3 py-2 text-right tabular-nums text-secondary sm:w-28">
         {result.priceCents !== null && result.currency ? (
           <Tooltip
             content={`Registration price for ${pluralize(result.periodYears ?? 1, 'year')}. Renewal usually costs more.`}
@@ -174,25 +181,33 @@ function ResultRow({ result }: { result: DomainAvailabilityDTO }) {
         )}
       </td>
 
-      <td className="px-3 py-2 text-right">
-        {result.ownedDomainId ? (
-          <Link
-            to={`/domains/${result.ownedDomainId}`}
-            className="text-xs text-accent hover:underline"
-          >
-            In your portfolio
-          </Link>
-        ) : !result.definitive && !result.error ? (
-          <Tooltip content="The registrar answered from its cache rather than the registry. Re-check before you rely on it.">
-            <span className="inline-flex items-center gap-1 text-[11px] text-warning">
-              <AlertTriangle className="size-3" />
-              Not confirmed
-            </span>
-          </Tooltip>
-        ) : null}
+      <td className="hidden px-3 py-2 text-right sm:table-cell">
+        <Note result={result} />
       </td>
     </tr>
   );
+}
+
+/** Either "already yours" or "the registrar guessed"; usually neither. */
+function Note({ result }: { result: DomainAvailabilityDTO }) {
+  if (result.ownedDomainId) {
+    return (
+      <Link to={`/domains/${result.ownedDomainId}`} className="text-xs text-accent hover:underline">
+        In your portfolio
+      </Link>
+    );
+  }
+  if (!result.definitive && !result.error) {
+    return (
+      <Tooltip content="The registrar answered from its cache rather than the registry. Re-check before you rely on it.">
+        <span className="inline-flex items-center gap-1 text-[11px] text-warning">
+          <AlertTriangle className="size-3" />
+          Not confirmed
+        </span>
+      </Tooltip>
+    );
+  }
+  return null;
 }
 
 function StatusBadge({ result }: { result: DomainAvailabilityDTO }) {

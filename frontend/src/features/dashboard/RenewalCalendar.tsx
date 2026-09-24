@@ -2,6 +2,7 @@ import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, X
 import { formatMoney, type RenewalCalendarEntryDTO } from '@domain-check/shared';
 import { Panel, PanelHeader } from '@/components/ui/primitives';
 import { formatMonthLabel, pluralize } from '@/lib/format';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 
 /**
  * Twelve months of forecast renewal spend.
@@ -20,6 +21,11 @@ export function RenewalCalendar({
 }) {
   const hasAnything = data.some((entry) => entry.domainCount > 0);
   const unpricedMonths = data.filter((entry) => entry.unknownCount > 0).length;
+  // Twelve month labels at 11px collide on a phone; show every other one. The
+  // Y axis keeps its 44px: the chart's -16px left margin shifts it partly out
+  // of the SVG, so a narrower band would clip the tick labels rather than
+  // tighten them.
+  const compact = useMediaQuery('(max-width: 767px)');
 
   return (
     <Panel>
@@ -44,6 +50,7 @@ export function RenewalCalendar({
                 tickFormatter={formatMonthLabel}
                 tickLine={false}
                 axisLine={false}
+                interval={compact ? 1 : undefined}
                 tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }}
               />
               <YAxis

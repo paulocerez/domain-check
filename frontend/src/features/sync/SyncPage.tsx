@@ -70,7 +70,7 @@ export function SyncPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-5">
         {runs.isLoading ? (
           <Skeleton className="h-64 w-full" />
         ) : !runs.data || runs.data.length === 0 ? (
@@ -122,19 +122,26 @@ function RunRow({
 
   return (
     <div>
-      <button onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40">
-        {expanded ? (
-          <ChevronDown className="size-3.5 shrink-0 text-disabled" />
-        ) : (
-          <ChevronRight className="size-3.5 shrink-0 text-disabled" />
-        )}
+      {/* Seven fixed-width counters in one row needed ~520px. On a phone the
+          identity of the run stays on line one and the counters wrap below it. */}
+      <button
+        onClick={onToggle}
+        className="flex w-full flex-col items-start gap-2 px-4 py-2.5 text-left hover:bg-muted/40 md:flex-row md:items-center md:gap-3"
+      >
+        <span className="flex w-full items-center gap-3 md:w-auto">
+          {expanded ? (
+            <ChevronDown className="size-3.5 shrink-0 text-disabled" />
+          ) : (
+            <ChevronRight className="size-3.5 shrink-0 text-disabled" />
+          )}
 
-        <Badge variant={STATUS_VARIANT[run.status]}>{run.status}</Badge>
-        <span className="text-[11px] text-tertiary">
-          {run.mode} · {run.trigger}
+          <Badge variant={STATUS_VARIANT[run.status]}>{run.status}</Badge>
+          <span className="text-[11px] text-tertiary">
+            {run.mode} · {run.trigger}
+          </span>
         </span>
 
-        <span className="tabular ml-auto flex items-center gap-3 text-[11px] text-secondary">
+        <span className="tabular flex flex-wrap items-center gap-x-3 gap-y-1 pl-7 text-[11px] text-secondary md:ml-auto md:flex-nowrap md:pl-0">
           <Stat label="seen" value={run.domainsSeen} />
           <Stat label="new" value={run.domainsCreated} tone={run.domainsCreated > 0 ? 'accent' : undefined} />
           <Stat label="changed" value={run.domainsUpdated} />
@@ -144,8 +151,8 @@ function RunRow({
             tone={run.domainsMissing > 0 ? 'urgent' : undefined}
           />
           <Stat label="errors" value={run.apiErrors} tone={run.apiErrors > 0 ? 'warning' : undefined} />
-          <span className="w-12 text-right text-disabled">{formatDuration(run.durationMs)}</span>
-          <span className="w-20 text-right text-disabled">{formatRelative(run.startedAt)}</span>
+          <span className="text-right text-disabled md:w-12">{formatDuration(run.durationMs)}</span>
+          <span className="text-right text-disabled md:w-20">{formatRelative(run.startedAt)}</span>
         </span>
       </button>
 
@@ -161,7 +168,7 @@ function RunRow({
       ) : null}
 
       {expanded ? (
-        <div className="border-t border-border bg-background/50 px-4 py-2 pl-11">
+        <div className="border-t border-border bg-background/50 px-4 py-2 pl-4 md:pl-11">
           {detail.isLoading ? (
             <Skeleton className="h-16 w-full" />
           ) : !detail.data || detail.data.changes.length === 0 ? (
@@ -170,7 +177,9 @@ function RunRow({
             <div className="flex flex-col gap-1 py-1">
               {detail.data.changes.slice(0, 50).map((change) => (
                 <div key={change.id} className="flex items-baseline gap-2 text-[11px]">
-                  <span className="w-48 shrink-0 truncate text-secondary">{change.domainName}</span>
+                  <span className="w-28 shrink-0 truncate text-secondary md:w-48">
+                    {change.domainName}
+                  </span>
                   <span className="text-tertiary">
                     {change.field ? (
                       <>
@@ -206,7 +215,7 @@ function Stat({
   tone?: 'accent' | 'urgent' | 'warning';
 }) {
   return (
-    <span className="w-16 text-right">
+    <span className="text-right md:w-16">
       <span
         className={cn(
           tone === 'accent' && 'text-accent',

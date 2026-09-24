@@ -26,17 +26,21 @@ export function CostByTld({ data, currency }: { data: CostByTldDTO[]; currency: 
               to={`/domains?tld=${entry.tld}`}
               className="group flex items-center gap-2.5"
             >
-              <span className="w-16 shrink-0 truncate text-[11px] text-secondary">.{entry.tld}</span>
+              <span className="w-12 shrink-0 truncate text-[11px] text-secondary md:w-16">
+                .{entry.tld}
+              </span>
               <div className="h-4 flex-1 overflow-hidden rounded-sm bg-muted">
                 <div
                   className="h-full rounded-sm bg-accent/70 transition-[width] group-hover:bg-accent"
                   style={{ width: `${(entry.annualizedCents / max) * 100}%` }}
                 />
               </div>
-              <span className="tabular w-20 shrink-0 text-right text-[11px] text-secondary">
+              <span className="tabular w-16 shrink-0 text-right text-[11px] text-secondary md:w-20">
                 {formatMoney(entry.annualizedCents, currency)}
               </span>
-              <span className="tabular w-16 shrink-0 text-right text-[11px] text-disabled">
+              {/* The fixed columns totalled 272px, which collapsed the bar to
+                  nothing on a phone. The count is the one that can go. */}
+              <span className="tabular hidden w-16 shrink-0 text-right text-[11px] text-disabled sm:inline">
                 {entry.unpricedCount > 0
                   ? `${entry.unpricedCount} unpriced`
                   : pluralize(entry.domainCount, 'domain')}
@@ -46,7 +50,7 @@ export function CostByTld({ data, currency }: { data: CostByTldDTO[]; currency: 
 
           {rest.length > 0 ? (
             <div className="flex items-center gap-2.5 pt-1">
-              <span className="w-16 shrink-0 text-[11px] text-disabled">
+              <span className="w-12 shrink-0 text-[11px] text-disabled md:w-16">
                 +{rest.length} more
               </span>
               <div className="h-4 flex-1 overflow-hidden rounded-sm bg-muted">
@@ -55,10 +59,10 @@ export function CostByTld({ data, currency }: { data: CostByTldDTO[]; currency: 
                   style={{ width: `${(restTotal / max) * 100}%` }}
                 />
               </div>
-              <span className="tabular w-20 shrink-0 text-right text-[11px] text-disabled">
+              <span className="tabular w-16 shrink-0 text-right text-[11px] text-disabled md:w-20">
                 {formatMoney(restTotal, currency)}
               </span>
-              <span className="w-16 shrink-0" />
+              <span className="hidden w-16 shrink-0 sm:inline" />
             </div>
           ) : null}
         </div>

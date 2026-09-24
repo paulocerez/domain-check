@@ -25,7 +25,7 @@ export function DomainDetailSheet({
     <Sheet open={Boolean(domainId)} onOpenChange={(open) => !open && onClose()}>
       <SheetContent title={query.data?.name ?? 'Domain'} className="overflow-y-auto">
         {query.isLoading ? (
-          <div className="flex flex-col gap-3 p-5">
+          <div className="flex flex-col gap-3 p-4 md:p-5">
             <Skeleton className="h-6 w-48" />
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-32 w-full" />
@@ -47,7 +47,7 @@ function DetailBody({ domain, focusPrice }: { domain: DomainDetailDTO; focusPric
 
   return (
     <>
-      <header className="shrink-0 border-b border-border px-5 py-4 pr-12">
+      <header className="shrink-0 border-b border-border px-4 py-4 pr-12 md:px-5">
         <div className="flex items-center gap-2">
           <button
             onClick={() => update.mutate({ isFavorite: !domain.isFavorite })}
@@ -76,7 +76,7 @@ function DetailBody({ domain, focusPrice }: { domain: DomainDetailDTO; focusPric
           <DomainStatusBadges domain={domain} />
         </div>
 
-        <div className="mt-3 flex items-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <Button
             size="sm"
             onClick={() =>
@@ -129,7 +129,7 @@ function DetailBody({ domain, focusPrice }: { domain: DomainDetailDTO; focusPric
         </div>
       </header>
 
-      <div className="flex flex-col gap-5 p-5">
+      <div className="flex flex-col gap-5 p-4 md:p-5">
         {domain.cancelOnExpire ? (
           <Callout variant="urgent" title="Set to cancel on expiry">
             This domain will not renew. It is scheduled for cancellation
@@ -280,8 +280,10 @@ function RegistrarFacts({ domain }: { domain: DomainDetailDTO }) {
           {domain.detailFetchedAt ? `synced ${formatRelative(domain.detailFetchedAt)}` : 'not yet detailed'}
         </span>
       </div>
-      {/* Read-only and dimmed: these are facts we observe, not settings we own. */}
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border border-border bg-surface p-3">
+      {/* Read-only and dimmed: these are facts we observe, not settings we own.
+          Each cell is a label/value pair needing ~90px, so two columns at phone
+          width would truncate away the values. */}
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-lg border border-border bg-surface p-3 sm:grid-cols-2">
         {facts.map(([label, value]) => (
           <div key={label} className="flex items-baseline justify-between gap-2">
             <dt className="text-[11px] text-tertiary">{label}</dt>
@@ -345,7 +347,7 @@ function AnnotationsSection({ domain }: { domain: DomainDetailDTO }) {
               onKeyDown={(event) => event.key === 'Enter' && addTag()}
               onBlur={addTag}
               placeholder="Add tag…"
-              className="h-6 w-24 px-1.5 text-[11px]"
+              className="h-9 w-24 px-1.5 text-[11px] md:h-6"
             />
           </div>
         </div>

@@ -42,8 +42,14 @@ export function CommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Command palette" className="top-[15%] overflow-hidden p-0">
-        <Command label="Command palette" className="flex max-h-[420px] flex-col">
+      {/* Shorter on a phone so an on-screen keyboard cannot bury the list. */}
+      {/* Opts out of DialogContent's own max-height and scroll container: the
+          list below already scrolls, and two nested scrollers fight. */}
+      <DialogContent
+        title="Command palette"
+        className="top-[8%] max-h-none overflow-hidden overflow-y-hidden p-0 md:top-[15%]"
+      >
+        <Command label="Command palette" className="flex max-h-[60dvh] flex-col md:max-h-[420px]">
           <Command.Input
             value={search}
             onValueChange={setSearch}

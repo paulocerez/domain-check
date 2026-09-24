@@ -7,6 +7,11 @@ import { cn } from '@/lib/utils';
 
 const HORIZON_DAYS = 365;
 const MARKERS = [0, 30, 90, 180, 270, 365];
+/**
+ * `today` and `30d` sit ~8% apart, so all six labels collide on a phone-width
+ * track. These two drop out below `sm`, leaving today / 90d / 180d / 365d.
+ */
+const DENSE_ONLY = new Set([30, 270]);
 
 /**
  * A single 365-day track with one tick per domain.
@@ -55,6 +60,9 @@ export function ExpiryTimeline({ data }: { data: ExpiryTimelinePointDTO[] }) {
                     onClick={() => navigate(`/domains/${point.domainId}`)}
                     className={cn(
                       'absolute top-1/2 h-4 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform hover:scale-y-150',
+                      // Widen the target with a transparent pad rather than the
+                      // tick itself — the density is the whole point of this chart.
+                      "before:absolute before:-inset-x-1.5 before:-inset-y-2 before:content-['']",
                       URGENCY_DOT[point.urgency],
                     )}
                     style={{ left: `${position}%` }}
@@ -69,7 +77,10 @@ export function ExpiryTimeline({ data }: { data: ExpiryTimelinePointDTO[] }) {
             {MARKERS.map((day) => (
               <span
                 key={day}
-                className="absolute -translate-x-1/2 text-[10px] text-disabled"
+                className={cn(
+                  'absolute -translate-x-1/2 text-[10px] text-disabled',
+                  DENSE_ONLY.has(day) && 'hidden sm:inline',
+                )}
                 style={{ left: `${(day / HORIZON_DAYS) * 100}%` }}
               >
                 {day === 0 ? 'today' : `${day}d`}

@@ -4,12 +4,14 @@ import type { DomainDTO } from '@domain-check/shared';
 import { PageHeader } from '@/components/PageHeader';
 import { Button, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { DomainDetailSheet } from './DomainDetailSheet';
+import { DomainsCards } from './DomainsCards';
 import { DomainsTable, type SortKey } from './DomainsTable';
 import { DomainsToolbar } from './DomainsToolbar';
 import { useDomainFilters } from './useDomainFilters';
 import { useDomains, useUpdateDomainById } from '@/api/hooks';
 import { useSetupState } from '@/features/setup/useSetupState';
 import { useHotkeys } from '@/lib/keyboard';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 
 export function DomainsPage() {
   const navigate = useNavigate();
@@ -21,6 +23,8 @@ export function DomainsPage() {
 
   const query = useDomains(controls.filters);
   const setup = useSetupState();
+  // The nine-column table needs ~960px; below that it becomes card rows.
+  const compact = useMediaQuery('(max-width: 767px)');
   const rows = useMemo(() => query.data?.rows ?? [], [query.data]);
 
   /**
@@ -71,8 +75,30 @@ export function DomainsPage() {
 
   const onSort = (key: SortKey) => {
     const sameKey = controls.filters.sort === key;
-    controls.setFilter('sort', key);
-    controls.setFilter('dir', sameKey && controls.filters.dir === 'asc' ? 'desc' : 'asc');
+    // One call, not two: see setFilters — consecutive setFilter calls overwrite
+    // each other, which is why picking a column only ever changed direction.
+    controls.setFilters({
+      sort: key,
+      dir: sameKey && controls.filters.dir === 'asc' ? 'desc' : 'asc',
+    });
+  };
+
+  // Cards and table take the same props on purpose, so the only difference
+  // between the two viewports is which one is mounted.
+  const List = compact ? DomainsCards : DomainsTable;
+  const listProps = {
+    domains,
+    selectedIndex,
+    activeId,
+    sort: (controls.filters.sort ?? 'expiry') as SortKey,
+    dir: controls.filters.dir ?? 'asc',
+    onSort,
+    onSelect: setSelectedIndex,
+    onOpen: open,
+    onToggleFavorite: (domain: DomainDTO) => {
+      setSelectedIndex(domains.indexOf(domain));
+      updateDomain.mutate({ id: domain.id, patch: { isFavorite: !domain.isFavorite } });
+    },
   };
 
   return (
@@ -91,7 +117,7 @@ export function DomainsPage() {
 
       <div className="flex-1 overflow-y-auto">
         {query.isLoading ? (
-          <div className="flex flex-col gap-px p-5">
+          <div className="flex flex-col gap-px p-3 md:p-5">
             {Array.from({ length: 12 }).map((_, index) => (
               <Skeleton key={index} className="h-8 w-full" />
             ))}
@@ -116,20 +142,7 @@ export function DomainsPage() {
             }
           />
         ) : (
-          <DomainsTable
-            domains={domains}
-            selectedIndex={selectedIndex}
-            activeId={activeId}
-            sort={(controls.filters.sort ?? 'expiry') as SortKey}
-            dir={controls.filters.dir ?? 'asc'}
-            onSort={onSort}
-            onSelect={setSelectedIndex}
-            onOpen={open}
-            onToggleFavorite={(domain) => {
-              setSelectedIndex(domains.indexOf(domain));
-              updateDomain.mutate({ id: domain.id, patch: { isFavorite: !domain.isFavorite } });
-            }}
-          />
+          <List {...listProps} />
         )}
       </div>
 

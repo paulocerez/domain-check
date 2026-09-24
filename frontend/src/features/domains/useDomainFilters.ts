@@ -29,16 +29,26 @@ export function useDomainFilters() {
     [params],
   );
 
-  const setFilter = useCallback(
-    (key: string, value: string | string[] | undefined) => {
+  /**
+   * Applies several filters in one navigation.
+   *
+   * Calling `setFilter` twice in a row does not compose: react-router builds
+   * `previous` from the current location, so two synchronous calls both see the
+   * pre-navigation params and the second silently discards the first. Sorting
+   * needs to write `sort` and `dir` together, so it has to go through here.
+   */
+  const setFilters = useCallback(
+    (entries: Record<string, string | string[] | undefined>) => {
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous);
-          next.delete(key);
-          if (Array.isArray(value)) {
-            for (const entry of value) next.append(key, entry);
-          } else if (value !== undefined && value !== '') {
-            next.set(key, value);
+          for (const [key, value] of Object.entries(entries)) {
+            next.delete(key);
+            if (Array.isArray(value)) {
+              for (const entry of value) next.append(key, entry);
+            } else if (value !== undefined && value !== '') {
+              next.set(key, value);
+            }
           }
           return next;
         },
@@ -46,6 +56,11 @@ export function useDomainFilters() {
       );
     },
     [setParams],
+  );
+
+  const setFilter = useCallback(
+    (key: string, value: string | string[] | undefined) => setFilters({ [key]: value }),
+    [setFilters],
   );
 
   const toggleInList = useCallback(
@@ -69,5 +84,5 @@ export function useDomainFilters() {
     return count;
   }, [params]);
 
-  return { filters, setFilter, toggleInList, clearAll, activeCount, params };
+  return { filters, setFilter, setFilters, toggleInList, clearAll, activeCount, params };
 }

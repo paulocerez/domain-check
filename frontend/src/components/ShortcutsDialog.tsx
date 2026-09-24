@@ -47,7 +47,7 @@ export function ShortcutsDialog({
         <div className="border-b border-border px-4 py-3">
           <h2 className="text-[13px] font-semibold text-primary">Keyboard shortcuts</h2>
         </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-5 p-4">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-5 p-4 sm:grid-cols-2">
           {SECTIONS.map((section) => (
             <div key={section.title}>
               <h3 className="label-eyebrow mb-2">{section.title}</h3>

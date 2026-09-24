@@ -43,7 +43,7 @@ export function PricesPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-5">
         {query.isLoading ? (
           <Skeleton className="h-64 w-full" />
         ) : (
@@ -95,16 +95,23 @@ function MissingTlds({
       />
       <div className="flex flex-col divide-y divide-border">
         {tlds.map((entry) => (
-          <div key={entry.tld} className="flex items-center gap-3 px-4 py-2">
-            <Badge variant="warning">.{entry.tld}</Badge>
-            <span className="text-[11px] text-tertiary">{pluralize(entry.domainCount, 'domain')}</span>
-            <div className="ml-auto flex items-center gap-1.5">
+          <div
+            key={entry.tld}
+            className="flex flex-col items-start gap-2 px-4 py-2 md:flex-row md:items-center md:gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <Badge variant="warning">.{entry.tld}</Badge>
+              <span className="text-[11px] text-tertiary">
+                {pluralize(entry.domainCount, 'domain')}
+              </span>
+            </div>
+            <div className="flex w-full items-center gap-1.5 md:ml-auto md:w-auto">
               <Input
                 value={drafts[entry.tld] ?? ''}
                 onChange={(event) => setDrafts((d) => ({ ...d, [entry.tld]: event.target.value }))}
                 onKeyDown={(event) => event.key === 'Enter' && save(entry.tld)}
                 placeholder={`0.00 ${currency}`}
-                className="h-7 w-28"
+                className="h-9 w-full md:h-7 md:w-28"
                 inputMode="decimal"
               />
               <Button size="sm" onClick={() => save(entry.tld)} disabled={upsert.isPending}>
@@ -150,10 +157,15 @@ function PriceTable({ prices }: { prices: Array<TldPriceDTO & { domainCount: num
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-border">
-            <th className="label-eyebrow h-8 px-4 text-left font-semibold">TLD</th>
+            <th className="label-eyebrow h-8 px-3 text-left font-semibold md:px-4">TLD</th>
             <th className="label-eyebrow h-8 px-2.5 text-left font-semibold">Renewal</th>
-            <th className="label-eyebrow h-8 px-2.5 text-left font-semibold">Term</th>
-            <th className="label-eyebrow h-8 px-2.5 text-left font-semibold">Domains</th>
+            {/* Term and Domains are the two columns worth losing at phone width. */}
+            <th className="label-eyebrow hidden h-8 px-2.5 text-left font-semibold sm:table-cell">
+              Term
+            </th>
+            <th className="label-eyebrow hidden h-8 px-2.5 text-left font-semibold sm:table-cell">
+              Domains
+            </th>
             <th className="label-eyebrow h-8 px-2.5 text-left font-semibold">Source</th>
             <th className="h-8 w-10" />
           </tr>
@@ -161,7 +173,7 @@ function PriceTable({ prices }: { prices: Array<TldPriceDTO & { domainCount: num
         <tbody>
           {prices.map((price) => (
             <tr key={price.id} className="h-9 border-b border-border/60 hover:bg-muted/40">
-              <td className="px-4">
+              <td className="px-3 md:px-4">
                 <Badge variant="outline">.{price.tld}</Badge>
               </td>
               <td className="px-2.5">
@@ -175,7 +187,7 @@ function PriceTable({ prices }: { prices: Array<TldPriceDTO & { domainCount: num
                       if (event.key === 'Enter') commit(price);
                       if (event.key === 'Escape') setEditing(null);
                     }}
-                    className="h-6 w-28"
+                    className="h-9 w-24 md:h-6 md:w-28"
                     inputMode="decimal"
                   />
                 ) : (
@@ -190,10 +202,12 @@ function PriceTable({ prices }: { prices: Array<TldPriceDTO & { domainCount: num
                   </button>
                 )}
               </td>
-              <td className="tabular px-2.5 text-tertiary">
+              <td className="tabular hidden px-2.5 text-tertiary sm:table-cell">
                 {price.termMonths === 12 ? '1 yr' : `${price.termMonths} mo`}
               </td>
-              <td className="tabular px-2.5 text-tertiary">{price.domainCount}</td>
+              <td className="tabular hidden px-2.5 text-tertiary sm:table-cell">
+                {price.domainCount}
+              </td>
               <td className="px-2.5">
                 {price.source === 'seed' ? (
                   <Tooltip content="An indicative list price seeded on first run — replace it with what you actually pay.">
@@ -206,7 +220,7 @@ function PriceTable({ prices }: { prices: Array<TldPriceDTO & { domainCount: num
                   <Badge variant="positive">yours</Badge>
                 )}
               </td>
-              <td className="pr-4 text-right">
+              <td className="pr-3 text-right md:pr-4">
                 <button
                   onClick={() => remove.mutate(price.tld)}
                   className="rounded p-1 text-disabled transition-colors hover:bg-urgent/10 hover:text-urgent"

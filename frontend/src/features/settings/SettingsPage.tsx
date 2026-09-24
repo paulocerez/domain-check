@@ -31,7 +31,7 @@ export function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" />
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-5">
         <div className="mx-auto flex max-w-3xl flex-col gap-3">
           {settings.data ? <GeneralPanel settings={settings.data} /> : <Skeleton className="h-64" />}
           {settings.data ? <AlertsPanel settings={settings.data} /> : <Skeleton className="h-64" />}
@@ -52,13 +52,15 @@ function Row({
   hint?: string;
   children: React.ReactNode;
 }) {
+  // Every control in this panel is wider than a phone's content column, so the
+  // row stacks rather than fighting over the space.
   return (
-    <div className="flex items-start justify-between gap-6 px-4 py-3">
+    <div className="flex flex-col items-stretch gap-2 px-4 py-3 md:flex-row md:items-start md:justify-between md:gap-6">
       <div className="min-w-0">
         <p className="text-[13px] text-primary">{label}</p>
         {hint ? <p className="mt-0.5 text-[11px] text-tertiary">{hint}</p> : null}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="md:shrink-0">{children}</div>
     </div>
   );
 }
@@ -91,7 +93,7 @@ function GeneralPanel({ settings }: { settings: AppSettingsDTO }) {
             value={currency}
             onChange={(event) => setCurrency(event.target.value.toUpperCase())}
             onBlur={() => currency !== settings.baseCurrency && save({ baseCurrency: currency })}
-            className="w-24 text-center uppercase"
+            className="w-full uppercase md:w-24 md:text-center"
             maxLength={3}
           />
         </Row>
@@ -104,7 +106,7 @@ function GeneralPanel({ settings }: { settings: AppSettingsDTO }) {
             value={timezone}
             onChange={(event) => setTimezone(event.target.value)}
             onBlur={() => timezone !== settings.timezone && save({ timezone })}
-            className="w-56"
+            className="w-full md:w-56"
             placeholder="Europe/Berlin"
           />
         </Row>
@@ -114,7 +116,7 @@ function GeneralPanel({ settings }: { settings: AppSettingsDTO }) {
             value={cron}
             onChange={(event) => setCron(event.target.value)}
             onBlur={() => cron !== settings.syncCron && save({ syncCron: cron })}
-            className="w-40 font-mono"
+            className="w-full font-mono md:w-40"
             placeholder="0 6 * * *"
           />
         </Row>
@@ -160,7 +162,7 @@ function AlertsPanel({ settings }: { settings: AppSettingsDTO }) {
             value={to}
             onChange={(event) => setTo(event.target.value)}
             onBlur={() => to !== (settings.alertEmailTo ?? '') && update.mutate({ alertEmailTo: to || null })}
-            className="w-64"
+            className="w-full md:w-64"
             placeholder="you@example.com"
             type="email"
           />
@@ -173,7 +175,7 @@ function AlertsPanel({ settings }: { settings: AppSettingsDTO }) {
             onBlur={() =>
               from !== (settings.alertEmailFrom ?? '') && update.mutate({ alertEmailFrom: from || null })
             }
-            className="w-64"
+            className="w-full md:w-64"
             placeholder="alerts@example.com"
             type="email"
           />
@@ -204,7 +206,7 @@ function AlertsPanel({ settings }: { settings: AppSettingsDTO }) {
               onChange={(event) => setLeadInput(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && addLead()}
               placeholder="add…"
-              className="h-6 w-16 px-1.5 text-[11px]"
+              className="h-9 w-16 px-1.5 text-[11px] md:h-6"
               inputMode="numeric"
             />
           </div>
@@ -278,7 +280,7 @@ function AccountsPanel() {
           {accounts.data?.rows.length === 0
             ? accounts.data.expected.map((entry) => (
                 <div key={entry.kind} className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[13px] font-medium text-primary">{entry.label}</span>
                     <Badge variant="outline">{entry.kind}</Badge>
                     <Badge variant="urgent">
@@ -299,7 +301,7 @@ function AccountsPanel() {
 
           {accounts.data?.rows.map((account) => (
             <div key={account.id} className="px-4 py-3">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[13px] font-medium text-primary">{account.label}</span>
                 <Badge variant="outline">{account.kind}</Badge>
                 {account.credentialConfigured ? (
@@ -338,7 +340,7 @@ function AccountsPanel() {
                 </Button>
               </div>
 
-              <div className="mt-1.5 flex items-center gap-3 text-[11px] text-tertiary">
+              <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-tertiary">
                 <span>{account.domainCount} domains</span>
                 <span>synced {formatRelative(account.lastSyncAt)}</span>
                 {account.lastSyncStatus ? <span>· {account.lastSyncStatus}</span> : null}
